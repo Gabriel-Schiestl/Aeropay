@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/config"
+	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/persistence"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/presentation/server"
 	"github.com/joho/godotenv"
 	"go.uber.org/fx"
@@ -29,7 +30,8 @@ func main() {
 	}()
 
 	app := fx.New(
-		fx.Provide(server.NewServer, config.LoadHTTPConfig),
+		fx.Provide(server.NewServer, config.LoadHTTPConfig, 
+			config.LoadDBConfig, persistence.NewDB),
 		fx.Invoke(func(srv *server.Server, httpConfig *config.HTTPConfig) {
 			err := srv.Start(httpConfig.Port)
 			if err != nil {
