@@ -1,11 +1,18 @@
 package usecase
 
-import "github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/application/dto"
+import (
+	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/application/dto"
+	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/domain/ports"
+)
 
-type CreatePaymentUseCase struct {}
+type CreatePaymentUseCase struct {
+	repository ports.PaymentRepository
+}
 
-func NewCreatePaymentUseCase() *CreatePaymentUseCase {
-	return &CreatePaymentUseCase{}
+func NewCreatePaymentUseCase(repository ports.PaymentRepository) *CreatePaymentUseCase {
+	return &CreatePaymentUseCase{
+		repository: repository,
+	}
 }
 
 func (uc *CreatePaymentUseCase) Execute(props dto.CreatePaymentDTO) error {
