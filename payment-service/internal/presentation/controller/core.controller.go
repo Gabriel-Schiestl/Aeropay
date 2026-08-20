@@ -25,7 +25,7 @@ func (cc *CoreController) createPaymentHandler(ctx *gin.Context) {
 		return
 	}
 	
-	if err := cc.createPaymentUseCase.Execute(body); err != nil {
+	if err := cc.createPaymentUseCase.Execute(ctx.Request.Context(), body); err != nil {
 		ctx.JSON(mapErrorToHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}

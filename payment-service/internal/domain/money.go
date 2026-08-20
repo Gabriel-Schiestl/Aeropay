@@ -7,6 +7,10 @@ import (
 
 type Currency string
 
+func (c Currency) String() string {
+	return string(c)
+}
+
 const (
 	USD Currency = "USD"
 	EUR Currency = "EUR"
