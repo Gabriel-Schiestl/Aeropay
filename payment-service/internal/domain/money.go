@@ -13,6 +13,19 @@ const (
 	BRL Currency = "BRL"
 )
 
+var currencyMap = map[string]Currency{
+	"USD": USD,
+	"EUR": EUR,
+	"BRL": BRL,
+}
+
+func ParseCurrency(currencyStr string) (Currency, error) {
+	if currency, ok := currencyMap[currencyStr]; ok {
+		return currency, nil
+	}
+	return "", exception.ErrCurrencyMismatch
+}
+
 type Money struct {
 	amount decimal.Decimal
 	currency Currency
