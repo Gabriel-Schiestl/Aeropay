@@ -26,7 +26,7 @@ func (cc *CoreController) createPaymentHandler(ctx *gin.Context) {
 	}
 	
 	if err := cc.createPaymentUseCase.Execute(body); err != nil {
-		ctx.JSON(500, gin.H{"error": err.Error()})
+		ctx.JSON(mapErrorToHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}
 	ctx.JSON(201, gin.H{"message": "Payment created successfully"})
