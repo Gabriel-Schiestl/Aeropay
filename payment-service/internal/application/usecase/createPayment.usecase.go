@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/application/dto"
+	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/domain"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/domain/ports"
 )
 
@@ -16,6 +17,15 @@ func NewCreatePaymentUseCase(repository ports.PaymentRepository) *CreatePaymentU
 }
 
 func (uc *CreatePaymentUseCase) Execute(props dto.CreatePaymentDTO) error {
-	// Implement the logic to create a payment
+	payment, err := domain.NewPayment(props.Amount, props.Currency, props.From, props.To)
+	if err != nil {
+		return err
+	}
+
+	err = uc.repository.Save(payment)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
