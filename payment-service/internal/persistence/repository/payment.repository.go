@@ -48,6 +48,23 @@ func (r *paymentRepository) Save(ctx context.Context, payment *domain.Payment) e
 		return err
 	}
 
+	first, second := payment.From(), payment.To()
+	if second < first {
+		first, second = second, first
+	}
+
+	err = r.lockAccount(ctx, tx, first)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = r.lockAccount(ctx, tx, second)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	err = r.debitAccount(ctx, tx, payment)
 	if err != nil {
 		tx.Rollback()
@@ -69,15 +86,15 @@ func (r *paymentRepository) Save(ctx context.Context, payment *domain.Payment) e
 	return nil
 }
 
-func (r *paymentRepository) debitAccount(ctx context.Context, tx *sql.Tx, payment *domain.Payment) error {
+func (r *paymentRepository) lockAccount(ctx context.Context, tx *sql.Tx, accountID string) error {
 	txSelectStmt, err := tx.PrepareContext(ctx, r.selectAccountLockQuery)
 	if err != nil {
 		return err
 	}
 	defer txSelectStmt.Close()
 
-	var accountID, accountBalance string
-	err = txSelectStmt.QueryRowContext(ctx, payment.From()).Scan(&accountID, &accountBalance)
+	var id, balance string
+	err = txSelectStmt.QueryRowContext(ctx, accountID).Scan(&id, &balance)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return exception.ErrAccountNotFound
@@ -85,6 +102,10 @@ func (r *paymentRepository) debitAccount(ctx context.Context, tx *sql.Tx, paymen
 		return err
 	}
 
+	return nil
+}
+
+func (r *paymentRepository) debitAccount(ctx context.Context, tx *sql.Tx, payment *domain.Payment) error {
 	txDebitStmt, err := tx.PrepareContext(ctx, r.debitQuery)
 	if err != nil {
 		return err
@@ -119,21 +140,6 @@ func (r *paymentRepository) debitAccount(ctx context.Context, tx *sql.Tx, paymen
 }
 
 func (r *paymentRepository) creditAccount(ctx context.Context, tx *sql.Tx, payment *domain.Payment) error {
-	txSelectStmt, err := tx.PrepareContext(ctx, r.selectAccountLockQuery)
-	if err != nil {
-		return err
-	}
-	defer txSelectStmt.Close()
-
-	var accountID, accountBalance string
-	err = txSelectStmt.QueryRowContext(ctx, payment.To()).Scan(&accountID, &accountBalance)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return exception.ErrAccountNotFound
-		}
-		return err
-	}
-
 	txCreditStmt, err := tx.PrepareContext(ctx, r.creditQuery)
 	if err != nil {
 		return err
