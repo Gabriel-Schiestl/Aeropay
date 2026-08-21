@@ -12,7 +12,6 @@ type Payment struct {
 	currency Currency
 	from     string
 	to       string
-	transactions []*Transaction
 }
 
 func NewPayment(amount decimal.Decimal, currency, from, to string) (*Payment, error) {
@@ -25,8 +24,13 @@ func NewPayment(amount decimal.Decimal, currency, from, to string) (*Payment, er
 		return nil, err
 	}
 
-	transactionFrom := NewTransaction(amount, currencyEnum, from, to)
-	transactionTo := NewTransaction(amount, currencyEnum, to, from)
+	if from == "" || to == "" {
+		return nil, exception.ErrInvalidAccount
+	}
+
+	if from == to {
+		return nil, exception.ErrSameAccount
+	}
 
 	return &Payment{
 		id:       uuid.New().String(),
@@ -34,7 +38,6 @@ func NewPayment(amount decimal.Decimal, currency, from, to string) (*Payment, er
 		currency: currencyEnum,
 		from:     from,
 		to:       to,
-		transactions: []*Transaction{transactionFrom, transactionTo},
 	}, nil
 }
 
@@ -43,4 +46,3 @@ func (p *Payment) Amount() decimal.Decimal { return p.amount }
 func (p *Payment) Currency() Currency { return p.currency }
 func (p *Payment) From() string { return p.from }
 func (p *Payment) To() string { return p.to }
-func (p *Payment) Transactions() []*Transaction { return p.transactions }

@@ -9,7 +9,9 @@ import (
 
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/application/usecase"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/config"
+	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/domain/ports"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/persistence"
+	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/persistence/repository"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/presentation/controller"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/presentation/server"
 	"github.com/joho/godotenv"
@@ -36,6 +38,12 @@ func main() {
 			config.LoadDBConfig, persistence.NewDB),
 		fx.Provide(usecase.NewCreatePaymentUseCase),
 		fx.Provide(controller.NewCoreController),
+		fx.Provide(
+			fx.Annotate(
+				repository.NewPaymentRepository,
+				fx.As(new(ports.PaymentRepository)),
+			),
+		),
 		fx.Invoke(func(srv *server.Server, httpConfig *config.HTTPConfig, coreController *controller.CoreController) {
 			coreController.RegisterRoutes(srv)
 
