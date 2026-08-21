@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/config"
+	_ "github.com/lib/pq"
 )
 
 func NewDB(cfg *config.DBConfig) *sql.DB {
