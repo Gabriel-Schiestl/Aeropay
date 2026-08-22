@@ -22,7 +22,7 @@ import (
 func main() {
 	err := godotenv.Load(".env")
 	if err != nil {
-		panic(err)
+		log.Println("Error loading .env file")
 	}
 
 	sigChan := make(chan os.Signal, 1)

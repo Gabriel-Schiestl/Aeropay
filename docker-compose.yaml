@@ -1,6 +1,9 @@
 services:
   web:
     image: payment-service:latest
+    build: ./payment-service
+    env_file:
+      - ./payment-service/.env
     ports:
       - "8080:8080"
     depends_on:
@@ -8,11 +11,13 @@ services:
 
   db:
     image: postgres:latest
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_ROOT_PASSWORD: rootpassword
-      POSTGRES_DATABASE: mydb
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_DATABASE: payment_service
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     volumes:
       - db_data:/var/lib/postgresql/data
 
