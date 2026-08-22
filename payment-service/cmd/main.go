@@ -45,6 +45,12 @@ func main() {
 				fx.As(new(ports.PaymentRepository)),
 			),
 		),
+		fx.Invoke(func(db *sql.DB, dbConfig *config.DBConfig) {
+			err := persistence.RunMigrations(db, dbConfig)
+			if err != nil {
+				panic(err)
+			}
+		}),
 		fx.Invoke(func(srv *server.Server, httpConfig *config.HTTPConfig, coreController *controller.CoreController) {
 			coreController.RegisterRoutes(srv)
 
@@ -53,12 +59,6 @@ func main() {
 				panic(err)
 			}
 			fmt.Println("Server started on port 8080")
-		}),
-		fx.Invoke(func(db *sql.DB, dbConfig *config.DBConfig) {
-			err := persistence.RunMigrations(db, dbConfig)
-			if err != nil {
-				panic(err)
-			}
 		}),
 	)
 
