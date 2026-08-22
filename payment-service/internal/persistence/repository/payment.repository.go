@@ -22,7 +22,7 @@ func NewPaymentRepository(db *sql.DB) ports.PaymentRepository {
 	return &paymentRepository{
 		db: db,
 		paymentQuery: `INSERT INTO payments (id, amount, currency, from_account, to_account) VALUES ($1, $2, $3, $4, $5)`,
-		ledgerQuery: `INSERT INTO ledger (id, amount, currency, account, payment_id) VALUES ($1, $2, $3, $4, $5)`,
+		ledgerQuery: `INSERT INTO ledger (amount, currency, account, payment_id) VALUES ($1, $2, $3, $4)`,
 		debitQuery: `UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND balance >= $1`,
 		creditQuery: `UPDATE accounts SET balance = balance + $1 WHERE id = $2`,
 		selectAccountLockQuery: `SELECT id, balance FROM accounts WHERE id = $1 FOR UPDATE`,
@@ -131,7 +131,7 @@ func (r *paymentRepository) debitAccount(ctx context.Context, tx *sql.Tx, paymen
 	}
 	defer txLedgerStmt.Close()
 
-	_, err = txLedgerStmt.ExecContext(ctx, payment.ID(), payment.Amount().Neg().String(), payment.Currency().String(), payment.From(), payment.ID())
+	_, err = txLedgerStmt.ExecContext(ctx, payment.Amount().Neg().String(), payment.Currency().String(), payment.From(), payment.ID())
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func (r *paymentRepository) creditAccount(ctx context.Context, tx *sql.Tx, payme
 	}
 	defer txLedgerStmt.Close()
 
-	_, err = txLedgerStmt.ExecContext(ctx, payment.ID(), payment.Amount().String(), payment.Currency().String(), payment.To(), payment.ID())
+	_, err = txLedgerStmt.ExecContext(ctx, payment.Amount().String(), payment.Currency().String(), payment.To(), payment.ID())
 	if err != nil {
 		return err
 	}

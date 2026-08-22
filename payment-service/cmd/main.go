@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -34,7 +35,7 @@ func main() {
 	}()
 
 	app := fx.New(
-		fx.Provide(server.NewServer, config.LoadHTTPConfig, 
+		fx.Provide(server.NewServer, config.LoadHTTPConfig,
 			config.LoadDBConfig, persistence.NewDB),
 		fx.Provide(usecase.NewCreatePaymentUseCase),
 		fx.Provide(controller.NewCoreController),
@@ -52,6 +53,12 @@ func main() {
 				panic(err)
 			}
 			fmt.Println("Server started on port 8080")
+		}),
+		fx.Invoke(func(db *sql.DB, dbConfig *config.DBConfig) {
+			err := persistence.RunMigrations(db, dbConfig)
+			if err != nil {
+				panic(err)
+			}
 		}),
 	)
 
