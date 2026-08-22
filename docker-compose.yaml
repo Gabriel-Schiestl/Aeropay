@@ -14,8 +14,7 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_ROOT_PASSWORD: rootpassword
-      POSTGRES_DATABASE: payment_service
+      POSTGRES_DB: payment_service
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:
