@@ -15,6 +15,7 @@ FROM alpine:3.24.1
 WORKDIR /app
 
 COPY --from=builder /app/payment-service .
+COPY --from=builder /app/internal/persistence/migrations.sql ./internal/persistence/migrations.sql
 
 EXPOSE 8080
 
