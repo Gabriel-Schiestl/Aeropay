@@ -79,6 +79,10 @@ export default function () {
 
   paymentSuccess.add(res.status === 201);
 
+  if (res.status >= 500) {
+    console.error(`5xx from POST /payments: status=${res.status} body=${res.body}`);
+  }
+
   check(res, {
     'no server error (5xx)': (r) => r.status < 500,
   });
