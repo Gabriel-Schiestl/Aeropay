@@ -35,19 +35,6 @@ func (r *paymentRepository) Save(ctx context.Context, payment *domain.Payment) e
 		return err
 	}
 
-	txPaymentStmt, err := tx.PrepareContext(ctx, r.paymentQuery)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	defer txPaymentStmt.Close()
-
-	_, err = txPaymentStmt.ExecContext(ctx, payment.ID(), payment.Amount().String(), payment.Currency().String(), payment.From(), payment.To())
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
 	first, second := payment.From(), payment.To()
 	if second < first {
 		first, second = second, first
@@ -60,6 +47,19 @@ func (r *paymentRepository) Save(ctx context.Context, payment *domain.Payment) e
 	}
 
 	err = r.lockAccount(ctx, tx, second)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	txPaymentStmt, err := tx.PrepareContext(ctx, r.paymentQuery)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer txPaymentStmt.Close()
+
+	_, err = txPaymentStmt.ExecContext(ctx, payment.ID(), payment.Amount().String(), payment.Currency().String(), payment.From(), payment.To())
 	if err != nil {
 		tx.Rollback()
 		return err
