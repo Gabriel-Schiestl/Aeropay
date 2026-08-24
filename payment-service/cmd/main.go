@@ -11,6 +11,7 @@ import (
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/application/usecase"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/config"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/domain/ports"
+	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/observability"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/persistence"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/persistence/repository"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/presentation/controller"
@@ -51,6 +52,7 @@ func main() {
 				panic(err)
 			}
 		}),
+		fx.Invoke(observability.RegisterDBCollector),
 		fx.Invoke(func(srv *server.Server, httpConfig *config.HTTPConfig, coreController *controller.CoreController) {
 			coreController.RegisterRoutes(srv)
 

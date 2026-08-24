@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
 CREATE TABLE IF NOT EXISTS accounts (
     id      UUID PRIMARY KEY,
     balance NUMERIC(19, 4) NOT NULL DEFAULT 0 CHECK (balance >= 0)

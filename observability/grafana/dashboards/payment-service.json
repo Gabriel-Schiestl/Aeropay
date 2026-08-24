@@ -1,0 +1,127 @@
+{
+  "title": "Payment Service - Load Test",
+  "uid": "payment-service-load-test",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "time": { "from": "now-15m", "to": "now" },
+  "refresh": "5s",
+  "panels": [
+    { "type": "row", "title": "RED - HTTP (what the client feels)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 } },
+    {
+      "type": "timeseries",
+      "title": "Throughput (req/s)",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(http_requests_total[1m])) by (path)", "legendFormat": "{{path}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "5xx error rate (%)",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "100 * sum(rate(http_requests_total{status=~\"5..\"}[1m])) / clamp_min(sum(rate(http_requests_total[1m])), 1e-9)",
+          "legendFormat": "5xx %"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency (p50 / p95 / p99)",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))", "legendFormat": "p99" }
+      ]
+    },
+
+    { "type": "row", "title": "USE - Go application (why it saturates)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 } },
+    {
+      "type": "timeseries",
+      "title": "Process CPU (% of 1 core)",
+      "description": "Compare against the container CPU limit (docker-compose: cpus: \"1\"). Near 100% = compute-bound.",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 10 },
+      "fieldConfig": { "defaults": { "unit": "percent" }, "overrides": [] },
+      "targets": [
+        { "expr": "100 * rate(process_cpu_seconds_total{job=\"payment-service\"}[1m])", "legendFormat": "cpu %" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Resident memory (RSS)",
+      "description": "Compare against the container's 512M limit. Continuous growth that never stabilizes = leak.",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 10 },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        { "expr": "process_resident_memory_bytes{job=\"payment-service\"}", "legendFormat": "RSS" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Active goroutines",
+      "description": "Uncontrolled growth under load = goroutines stuck (e.g. waiting on a DB lock or an exhausted pool).",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 10 },
+      "targets": [
+        { "expr": "go_goroutines{job=\"payment-service\"}", "legendFormat": "goroutines" }
+      ]
+    },
+
+    { "type": "row", "title": "USE - DB connection pool (Go)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 } },
+    {
+      "type": "timeseries",
+      "title": "Connections: open / in-use / idle",
+      "description": "If in-use stays pinned at MaxOpenConns (DB_MAX_OPEN_CONNS), the pool is the bottleneck - not Postgres.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+      "targets": [
+        { "expr": "go_sql_open_connections{db_name=\"payment_service\"}", "legendFormat": "open" },
+        { "expr": "go_sql_in_use_connections{db_name=\"payment_service\"}", "legendFormat": "in_use" },
+        { "expr": "go_sql_idle_connections{db_name=\"payment_service\"}", "legendFormat": "idle" },
+        { "expr": "go_sql_max_open_connections{db_name=\"payment_service\"}", "legendFormat": "max_open (config)" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Connection wait (count / duration)",
+      "description": "Rising wait_count = requests queuing on the pool before ever reaching Postgres.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+      "targets": [
+        { "expr": "rate(go_sql_wait_count_total{db_name=\"payment_service\"}[1m])", "legendFormat": "waits/s" },
+        { "expr": "rate(go_sql_wait_duration_seconds_total{db_name=\"payment_service\"}[1m])", "legendFormat": "wait time/s" }
+      ]
+    },
+
+    { "type": "row", "title": "USE - Postgres", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 } },
+    {
+      "type": "timeseries",
+      "title": "Active connections on Postgres",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 28 },
+      "targets": [
+        { "expr": "pg_stat_database_numbackends{datname=\"payment_service\"}", "legendFormat": "numbackends" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Locks by mode",
+      "description": "Under high concurrency on /payments, row locks (RowExclusive/Share) should scale with load without spiking - if they spike together with latency, that's lock contention (see commit 70f904a).",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 28 },
+      "targets": [
+        { "expr": "pg_locks_count{datname=\"payment_service\"}", "legendFormat": "{{mode}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Deadlocks (rate)",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 28 },
+      "targets": [
+        { "expr": "rate(pg_stat_database_deadlocks{datname=\"payment_service\"}[1m])", "legendFormat": "deadlocks/s" }
+      ]
+    }
+  ]
+}
