@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Seeds the `accounts` table with N random accounts for stress/load testing.
+# Truncates accounts/payments/ledger and seeds `accounts` with N random rows
+# for stress/load testing. Also exports the seeded account ids to
+# scripts/k6/data/accounts.json so the k6 load script can pick real ids.
 #
 # Usage:
 #   ./scripts/seed_accounts.sh [count] [min_balance] [max_balance]
@@ -13,6 +15,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/docker-compose.yaml"
+ACCOUNTS_FILE="$ROOT_DIR/scripts/k6/data/accounts.json"
 
 COUNT="${1:-1000}"
 MIN_BALANCE="${2:-0}"
@@ -39,6 +42,10 @@ until [ "$(docker compose -f "$COMPOSE_FILE" exec -T db psql -U "$DB_USER" -d "$
   sleep 1
 done
 
+echo "Truncating ledger, payments and accounts..."
+docker compose -f "$COMPOSE_FILE" exec -T db psql -U "$DB_USER" -d "$DB_NAME" \
+  -c "TRUNCATE TABLE ledger, payments, accounts RESTART IDENTITY CASCADE;"
+
 echo "Seeding $COUNT accounts (balance range: $MIN_BALANCE-$MAX_BALANCE)..."
 docker compose -f "$COMPOSE_FILE" exec -T db psql -U "$DB_USER" -d "$DB_NAME" \
   -v count="$COUNT" -v min_balance="$MIN_BALANCE" -v max_balance="$MAX_BALANCE" <<'SQL'
@@ -51,3 +58,8 @@ SQL
 
 echo "Done. Current account count:"
 docker compose -f "$COMPOSE_FILE" exec -T db psql -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT count(*) FROM accounts;"
+
+mkdir -p "$(dirname "$ACCOUNTS_FILE")"
+echo "Exporting seeded account ids to $ACCOUNTS_FILE..."
+docker compose -f "$COMPOSE_FILE" exec -T db psql -U "$DB_USER" -d "$DB_NAME" \
+  -tAc "SELECT coalesce(json_agg(id), '[]') FROM accounts;" > "$ACCOUNTS_FILE"
