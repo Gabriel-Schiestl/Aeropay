@@ -2,18 +2,18 @@ package controller
 
 import (
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/application/dto"
-	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/application/usecase"
+	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/application/service"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/presentation/server"
 	"github.com/gin-gonic/gin"
 )
 
 type CoreController struct {
-	createPaymentUseCase *usecase.CreatePaymentUseCase
+	paymentService *service.PaymentService
 }
 
-func NewCoreController(createPaymentUseCase *usecase.CreatePaymentUseCase) *CoreController {
+func NewCoreController(paymentService *service.PaymentService) *CoreController {
 	return &CoreController{
-		createPaymentUseCase: createPaymentUseCase,
+		paymentService: paymentService,
 	}
 }
 
@@ -25,7 +25,7 @@ func (cc *CoreController) createPaymentHandler(ctx *gin.Context) {
 		return
 	}
 	
-	if err := cc.createPaymentUseCase.Execute(ctx.Request.Context(), body); err != nil {
+	if err := cc.paymentService.Create(ctx.Request.Context(), body); err != nil {
 		ctx.JSON(mapErrorToHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}

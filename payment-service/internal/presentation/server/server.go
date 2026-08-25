@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+	"net/http"
 	"net/http/pprof"
 
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/observability"
@@ -8,7 +10,8 @@ import (
 )
 
 type Server struct {
-	Instance *gin.Engine
+	Instance   *gin.Engine
+	httpServer *http.Server
 }
 
 func NewServer() *Server {
@@ -41,5 +44,21 @@ func registerPprof(engine *gin.Engine) {
 }
 
 func (s *Server) Start(port string) error {
-	return s.Instance.Run(":" + port)
+	s.httpServer = &http.Server{
+		Addr:    ":" + port,
+		Handler: s.Instance,
+	}
+
+	err := s.httpServer.ListenAndServe()
+	if err == http.ErrServerClosed {
+		return nil
+	}
+	return err
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	if s.httpServer == nil {
+		return nil
+	}
+	return s.httpServer.Shutdown(ctx)
 }

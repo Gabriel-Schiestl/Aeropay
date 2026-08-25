@@ -1,20 +1,19 @@
 package main
 
 import (
+	"context"
 	"database/sql"
-	"fmt"
 	"log"
-	"os"
-	"os/signal"
-	"syscall"
 
-	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/application/usecase"
+	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/application/dto"
+	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/application/service"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/config"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/domain/ports"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/observability"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/persistence"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/persistence/repository"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/presentation/controller"
+	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/presentation/queue"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/presentation/server"
 	"github.com/joho/godotenv"
 	"go.uber.org/fx"
@@ -26,20 +25,18 @@ func main() {
 		log.Println("Error loading .env file")
 	}
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		<-sigChan
-		log.Println("Shutting down gracefully...")
-		os.Exit(0)
-	}()
-
 	app := fx.New(
 		fx.Provide(server.NewServer, config.LoadHTTPConfig,
-			config.LoadDBConfig, persistence.NewDB),
-		fx.Provide(usecase.NewCreatePaymentUseCase),
+			config.LoadDBConfig, config.LoadQueueConfig),
+		fx.Provide(persistence.NewDB),
+		fx.Provide(service.NewPaymentService),
 		fx.Provide(controller.NewCoreController),
+		fx.Provide(
+			fx.Annotate(
+				queue.NewPublisher[dto.CreatePaymentDTO],
+				fx.As(new(ports.Publisher[dto.CreatePaymentDTO])),
+			),
+		),
 		fx.Provide(
 			fx.Annotate(
 				repository.NewPaymentRepository,
@@ -53,14 +50,24 @@ func main() {
 			}
 		}),
 		fx.Invoke(observability.RegisterDBCollector),
-		fx.Invoke(func(srv *server.Server, httpConfig *config.HTTPConfig, coreController *controller.CoreController) {
+		fx.Invoke(func(lc fx.Lifecycle, srv *server.Server, httpConfig *config.HTTPConfig, coreController *controller.CoreController) {
 			coreController.RegisterRoutes(srv)
 
-			err := srv.Start(httpConfig.Port)
-			if err != nil {
-				panic(err)
-			}
-			fmt.Println("Server started on port 8080")
+			lc.Append(fx.Hook{
+				OnStart: func(context.Context) error {
+					go func() {
+						if err := srv.Start(httpConfig.Port); err != nil {
+							log.Printf("server error: %v", err)
+						}
+					}()
+					log.Printf("Server started on port %s", httpConfig.Port)
+					return nil
+				},
+				OnStop: func(ctx context.Context) error {
+					log.Println("Shutting down gracefully...")
+					return srv.Shutdown(ctx)
+				},
+			})
 		}),
 	)
 
