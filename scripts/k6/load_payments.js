@@ -31,6 +31,7 @@ const accounts = new SharedArray('accounts', function () {
 const paymentSuccess = new Rate('payment_success');
 
 export const options = {
+  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
   scenarios: {
     payments: {
       executor: 'ramping-vus',
@@ -44,11 +45,15 @@ export const options = {
     },
   },
   thresholds: {
-    // 5xx / connection errors - the service itself misbehaving.
-    http_req_failed: ['rate<0.01'],
+    // SLO (evolution/README.md): error rate < 0.1%.
+    http_req_failed: ['rate<0.001'],
     // 201s vs. business rejections (e.g. insufficient funds) - tune to taste.
     payment_success: ['rate>0.90'],
-    http_req_duration: ['p(95)<500'],
+    // SLO: p95 < 300ms, p99 < 750ms.
+    http_req_duration: ['p(95)<300', 'p(99)<750'],
+    // SLO: sustained throughput >= 1000 req/s. Averaged over the whole run
+    // (ramp-up/down included), so treat this as a lower bound, not exact.
+    http_reqs: ['rate>=1000'],
   },
 };
 

@@ -48,9 +48,9 @@ had 90 unused connection slots the whole time, and the app never got to use them
 
 ## Fix applied
 
-`DB_MAX_OPEN_CONNS` 10 → 40, `DB_MAX_IDLE_CONNS` 5 → 20 in `payment-service/.env`. A
+`DB_MAX_OPEN_CONNS` 10 → 30, `DB_MAX_IDLE_CONNS` 5 → 20 in `payment-service/.env`. A
 config-only change, so it stays within v1 (see [versioning model](../../README.md)) —
 no architectural change was needed for this bottleneck.
 
 **Confirmation status:** pending. Rerun `make test VUS=50 STEADY_DURATION=15s` against
-the current config (pool=40/20) to confirm the fix directly.
+the current config (pool=30/20) to confirm the fix directly.

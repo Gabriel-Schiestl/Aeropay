@@ -48,7 +48,8 @@ limit exactly. Config-only change, stays within v1.
 
 ## Confirmation
 
-Re-ran the same 100 VUs / 30s test (pool still 30 at this point):
+Re-ran the same 100 VUs / 30s test (pool still 40 at this point — it was later lowered
+to 30 for [SLO](../../README.md#slo) realism, after this investigation):
 
 | Metric | Before (no GOMAXPROCS) | After (`GOMAXPROCS=1`) |
 |---|---|---|

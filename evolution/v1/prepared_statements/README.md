@@ -78,6 +78,8 @@ Re-ran the same 100 VUs / 30s test (pool still 40 at this point):
 The `avg`/`med` ratio going back up is the interesting result: it means the "typical
 fast + queueing tail" shape (the same signature as
 [pool_bottleneck](../pool_bottleneck/README.md)) reappeared cleanly — CPU pressure and
-per-request overhead are no longer masking it. At 100 VUs against a 30-connection pool,
+per-request overhead are no longer masking it. At 100 VUs against a 40-connection pool,
 the pool itself is now the sole clearly visible bottleneck, confirmed independently via
-`go_sql_wait_count_total` = 6123 waits / 256.5s cumulative wait on that same run.
+`go_sql_wait_count_total` = 6123 waits / 256.5s cumulative wait on that same run. (The
+pool was later lowered to 30 for [SLO](../../README.md#slo) realism, after this
+investigation.)
