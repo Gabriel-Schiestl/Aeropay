@@ -3,6 +3,31 @@
 This directory tracks the scaling journey of `payment-service` as a deliberate exercise
 in identifying bottlenecks and proposing fixes.
 
+## SLO
+
+Without a fixed target, tuning has no objective stopping point — there's always some
+config change that pushes the ceiling a bit further. The SLO is what turns "how far can
+we tune this?" into a yes/no question, and gives a principled trigger for moving to the
+next version instead of tuning indefinitely.
+
+| | Target |
+|---|---|
+| p95 latency | < 300ms |
+| p99 latency | < 750ms |
+| Error rate | < 0.1% |
+| Sustained throughput | 1000 req/s |
+
+Config is also constrained to what would be defensible in production, not whatever makes
+a given test pass — e.g. the DB connection pool is capped at a size realistic for a
+single Postgres instance *without* a pooler like PgBouncer in front of it (each Postgres
+backend is a real, relatively expensive OS process), not pushed arbitrarily high just to
+chase away wait metrics.
+
+If v1 can't hit this SLO within realistic config, that's the trigger for v2 (see
+versioning model below) — not "we could still tune it more."
+
+This SLO is a starting point and expected to be revised as the exercise progresses.
+
 ## Versioning model
 
 A version (`vN`) is one **architecture**, not one config. While a given architecture can

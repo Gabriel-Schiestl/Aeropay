@@ -10,22 +10,49 @@ import (
 )
 
 type paymentRepository struct {
-	db *sql.DB
-	paymentQuery     string
-	ledgerQuery string
-	debitQuery	  string
-	creditQuery	  string
-	selectAccountLockQuery string
+	db                    *sql.DB
+	paymentStmt           *sql.Stmt
+	ledgerStmt            *sql.Stmt
+	debitStmt             *sql.Stmt
+	creditStmt            *sql.Stmt
+	selectAccountLockStmt *sql.Stmt
 }
 
 func NewPaymentRepository(db *sql.DB) ports.PaymentRepository {
+	ctx := context.Background()
+
+	paymentStmt, err := db.PrepareContext(ctx, `INSERT INTO payments (id, amount, currency, from_account, to_account) VALUES ($1, $2, $3, $4, $5)`)
+	if err != nil {
+		panic(err)
+	}
+
+	ledgerStmt, err := db.PrepareContext(ctx, `INSERT INTO ledger (amount, currency, account, payment_id) VALUES ($1, $2, $3, $4)`)
+	if err != nil {
+		panic(err)
+	}
+
+	debitStmt, err := db.PrepareContext(ctx, `UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND balance >= $1`)
+	if err != nil {
+		panic(err)
+	}
+
+	creditStmt, err := db.PrepareContext(ctx, `UPDATE accounts SET balance = balance + $1 WHERE id = $2`)
+	if err != nil {
+		panic(err)
+	}
+
+	selectAccountLockStmt, err := db.PrepareContext(ctx, `SELECT id, balance FROM accounts WHERE id = $1 FOR UPDATE`)
+	if err != nil {
+		panic(err)
+	}
+
 	return &paymentRepository{
-		db: db,
-		paymentQuery: `INSERT INTO payments (id, amount, currency, from_account, to_account) VALUES ($1, $2, $3, $4, $5)`,
-		ledgerQuery: `INSERT INTO ledger (amount, currency, account, payment_id) VALUES ($1, $2, $3, $4)`,
-		debitQuery: `UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND balance >= $1`,
-		creditQuery: `UPDATE accounts SET balance = balance + $1 WHERE id = $2`,
-		selectAccountLockQuery: `SELECT id, balance FROM accounts WHERE id = $1 FOR UPDATE`,
+		db:                    db,
+		paymentStmt:           paymentStmt,
+		ledgerStmt:            ledgerStmt,
+		debitStmt:             debitStmt,
+		creditStmt:            creditStmt,
+		selectAccountLockStmt: selectAccountLockStmt,
 	}
 }
 
@@ -52,14 +79,7 @@ func (r *paymentRepository) Save(ctx context.Context, payment *domain.Payment) e
 		return err
 	}
 
-	txPaymentStmt, err := tx.PrepareContext(ctx, r.paymentQuery)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	defer txPaymentStmt.Close()
-
-	_, err = txPaymentStmt.ExecContext(ctx, payment.ID(), payment.Amount().String(), payment.Currency().String(), payment.From(), payment.To())
+	_, err = tx.StmtContext(ctx, r.paymentStmt).ExecContext(ctx, payment.ID(), payment.Amount().String(), payment.Currency().String(), payment.From(), payment.To())
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -87,14 +107,8 @@ func (r *paymentRepository) Save(ctx context.Context, payment *domain.Payment) e
 }
 
 func (r *paymentRepository) lockAccount(ctx context.Context, tx *sql.Tx, accountID string) error {
-	txSelectStmt, err := tx.PrepareContext(ctx, r.selectAccountLockQuery)
-	if err != nil {
-		return err
-	}
-	defer txSelectStmt.Close()
-
 	var id, balance string
-	err = txSelectStmt.QueryRowContext(ctx, accountID).Scan(&id, &balance)
+	err := tx.StmtContext(ctx, r.selectAccountLockStmt).QueryRowContext(ctx, accountID).Scan(&id, &balance)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return exception.ErrAccountNotFound
@@ -106,13 +120,7 @@ func (r *paymentRepository) lockAccount(ctx context.Context, tx *sql.Tx, account
 }
 
 func (r *paymentRepository) debitAccount(ctx context.Context, tx *sql.Tx, payment *domain.Payment) error {
-	txDebitStmt, err := tx.PrepareContext(ctx, r.debitQuery)
-	if err != nil {
-		return err
-	}
-	defer txDebitStmt.Close()
-
-	res, err := txDebitStmt.ExecContext(ctx, payment.Amount().String(), payment.From())
+	res, err := tx.StmtContext(ctx, r.debitStmt).ExecContext(ctx, payment.Amount().String(), payment.From())
 	if err != nil {
 		return err
 	}
@@ -125,13 +133,7 @@ func (r *paymentRepository) debitAccount(ctx context.Context, tx *sql.Tx, paymen
 		return exception.ErrInsufficientFunds
 	}
 
-	txLedgerStmt, err := tx.PrepareContext(ctx, r.ledgerQuery)
-	if err != nil {
-		return err
-	}
-	defer txLedgerStmt.Close()
-
-	_, err = txLedgerStmt.ExecContext(ctx, payment.Amount().Neg().String(), payment.Currency().String(), payment.From(), payment.ID())
+	_, err = tx.StmtContext(ctx, r.ledgerStmt).ExecContext(ctx, payment.Amount().Neg().String(), payment.Currency().String(), payment.From(), payment.ID())
 	if err != nil {
 		return err
 	}
@@ -140,24 +142,12 @@ func (r *paymentRepository) debitAccount(ctx context.Context, tx *sql.Tx, paymen
 }
 
 func (r *paymentRepository) creditAccount(ctx context.Context, tx *sql.Tx, payment *domain.Payment) error {
-	txCreditStmt, err := tx.PrepareContext(ctx, r.creditQuery)
-	if err != nil {
-		return err
-	}
-	defer txCreditStmt.Close()
-
-	_, err = txCreditStmt.ExecContext(ctx, payment.Amount().String(), payment.To())
+	_, err := tx.StmtContext(ctx, r.creditStmt).ExecContext(ctx, payment.Amount().String(), payment.To())
 	if err != nil {
 		return err
 	}
 
-	txLedgerStmt, err := tx.PrepareContext(ctx, r.ledgerQuery)
-	if err != nil {
-		return err
-	}
-	defer txLedgerStmt.Close()
-
-	_, err = txLedgerStmt.ExecContext(ctx, payment.Amount().String(), payment.Currency().String(), payment.To(), payment.ID())
+	_, err = tx.StmtContext(ctx, r.ledgerStmt).ExecContext(ctx, payment.Amount().String(), payment.Currency().String(), payment.To(), payment.ID())
 	if err != nil {
 		return err
 	}

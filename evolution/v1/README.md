@@ -31,9 +31,10 @@ tooling, not part of the versioned architecture.
 
 | Setting | Value | Last changed by |
 |---|---|---|
-| `DB_MAX_OPEN_CONNS` | 40 | [pool_bottleneck](pool_bottleneck/README.md) |
-| `DB_MAX_IDLE_CONNS` | 20 | [pool_bottleneck](pool_bottleneck/README.md) |
+| `DB_MAX_OPEN_CONNS` | 30 | SLO baseline — capped at a size realistic without a pooler (PgBouncer) in front of Postgres, not raised further just to chase away pool wait. See [SLO](../README.md#slo). |
+| `DB_MAX_IDLE_CONNS` | 10 | same as above |
 | `DB_CONN_MAX_LIFETIME` | 30min | (initial) |
+| `GOMAXPROCS` | 1 | [gomaxprocs_mismatch](gomaxprocs_mismatch/README.md) |
 | Postgres `max_connections` | 100 | (initial, untouched) |
 | `web` container limits | `cpus: 1`, `memory: 512M` | (initial, untouched) |
 
@@ -41,4 +42,6 @@ tooling, not part of the versioned architecture.
 
 | # | Load test | Bottleneck | Verdict | Fix |
 |---|---|---|---|---|
-| 1 | 50 VUs, 15s steady | [Connection pool exhaustion](pool_bottleneck/README.md) | CONFIRMED | `DB_MAX_OPEN_CONNS` 10→40, `DB_MAX_IDLE_CONNS` 5→20 |
+| 1 | 50 VUs, 15s steady | [Connection pool exhaustion](pool_bottleneck/README.md) | CONFIRMED | `DB_MAX_OPEN_CONNS` 10→30, `DB_MAX_IDLE_CONNS` 5→10 |
+| 2 | 100 VUs, 30s steady | [GOMAXPROCS/cgroup CPU quota mismatch](gomaxprocs_mismatch/README.md) | CONFIRMED (partial) | `GOMAXPROCS=1` |
+| 3 | 100 VUs, 30s steady | [No prepared-statement reuse across requests](prepared_statements/README.md) | CONFIRMED | Prepare the 5 queries once in `NewPaymentRepository`, reuse via `tx.StmtContext` |
