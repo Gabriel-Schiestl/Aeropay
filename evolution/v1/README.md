@@ -27,6 +27,8 @@ architecture cannot absorb through tuning alone.
 - **Single `web` replica**, container capped at `cpus: 1`, `memory: 512M`
   (`docker-compose.yaml`).
 
+![v1 architecture](image.png)
+
 Observability (Prometheus + Grafana + postgres-exporter, `/metrics` and `/debug/pprof`
 on the Go service) was added specifically to support the investigations below — it's
 tooling, not part of the versioned architecture.
