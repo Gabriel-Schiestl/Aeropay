@@ -3,9 +3,11 @@ package config
 import "github.com/caarlos0/env/v6"
 
 type QueueConfig struct {
-	Topic     string `env:"QUEUE_TOPIC"`
-	Brokers   []string `env:"QUEUE_BROKERS" envSeparator:","`
-	MaxConsumers int    `env:"QUEUE_MAX_CONSUMERS" envDefault:"5"`
+	Topic         string   `env:"QUEUE_TOPIC"`
+	Brokers       []string `env:"QUEUE_BROKERS" envSeparator:","`
+	MaxConsumers  int      `env:"QUEUE_MAX_CONSUMERS" envDefault:"5"`
+	ConsumerGroup string   `env:"QUEUE_CONSUMER_GROUP"`
+	InstanceID    string   `env:"QUEUE_INSTANCE_ID"`
 }
 
 func LoadQueueConfig() *QueueConfig {

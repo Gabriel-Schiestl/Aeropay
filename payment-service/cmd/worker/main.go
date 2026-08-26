@@ -46,7 +46,7 @@ func main() {
 				OnStart: func(context.Context) error {
 					go func() {
 						if err := consumer.Consume(ctx); err != nil {
-							log.Printf("consumer error: %v", err)
+							log.Fatalf("consumer error: %v", err)
 						}
 					}()
 					return nil

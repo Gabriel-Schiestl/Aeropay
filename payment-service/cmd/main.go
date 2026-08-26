@@ -50,7 +50,7 @@ func main() {
 			}
 		}),
 		fx.Invoke(observability.RegisterDBCollector),
-		fx.Invoke(func(lc fx.Lifecycle, srv *server.Server, httpConfig *config.HTTPConfig, coreController *controller.CoreController) {
+		fx.Invoke(func(lc fx.Lifecycle, srv *server.Server, httpConfig *config.HTTPConfig, coreController *controller.CoreController, publisher ports.Publisher[dto.CreatePaymentDTO]) {
 			coreController.RegisterRoutes(srv)
 
 			lc.Append(fx.Hook{
@@ -65,6 +65,7 @@ func main() {
 				},
 				OnStop: func(ctx context.Context) error {
 					log.Println("Shutting down gracefully...")
+					publisher.Close()
 					return srv.Shutdown(ctx)
 				},
 			})
