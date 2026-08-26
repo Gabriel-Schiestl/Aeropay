@@ -13,6 +13,7 @@ import (
 
 type publisher[T any] struct {
 	client *kgo.Client
+	config *config.QueueConfig
 }
 
 type consumer[T any] struct {
@@ -30,6 +31,7 @@ func NewPublisher[T any](config *config.QueueConfig) ports.Publisher[T] {
 
 	return &publisher[T]{
 		client: client,
+		config: config,
 	}
 }
 
@@ -45,7 +47,19 @@ func (p *publisher[T]) Close() {
 }
 
 func (p *publisher[T]) Publish(message T) error {
-	// Implement the logic to publish a message to the queue
+	data, err := json.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	record := &kgo.Record{
+		Topic: p.config.Topic,
+		Value: data,
+	}
+
+	if err := p.client.ProduceSync(context.Background(), record).FirstErr(); err != nil {
+		return fmt.Errorf("failed to produce message: %w", err)
+	}
 	return nil
 }
 
