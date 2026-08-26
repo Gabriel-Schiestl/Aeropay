@@ -41,6 +41,29 @@ func NewPayment(amount decimal.Decimal, currency, from, to string) (*Payment, er
 	}, nil
 }
 
+func LoadPayment(id string, amount decimal.Decimal, currency, from, to string) (*Payment, error) {
+	currencyEnum, err := ParseCurrency(currency)
+	if err != nil {
+		return nil, err
+	}
+
+	if from == "" || to == "" {
+		return nil, exception.ErrInvalidAccount
+	}
+
+	if from == to {
+		return nil, exception.ErrSameAccount
+	}
+
+	return &Payment{
+		id:       id,
+		amount:   amount,
+		currency: currencyEnum,
+		from:     from,
+		to:       to,
+	}, nil
+}
+
 func (p *Payment) ID() string { return p.id }
 func (p *Payment) Amount() decimal.Decimal { return p.amount }
 func (p *Payment) Currency() Currency { return p.currency }

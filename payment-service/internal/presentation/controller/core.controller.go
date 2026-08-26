@@ -25,11 +25,13 @@ func (cc *CoreController) createPaymentHandler(ctx *gin.Context) {
 		return
 	}
 	
-	if err := cc.paymentService.Create(ctx.Request.Context(), body); err != nil {
+	payment, err := cc.paymentService.Create(ctx.Request.Context(), body)
+	if err != nil {
 		ctx.JSON(mapErrorToHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	ctx.JSON(201, gin.H{"message": "Payment created successfully"})
+
+	ctx.JSON(201, gin.H{"message": "Payment created successfully", "payment": payment})
 }
 
 func (cc *CoreController) RegisterRoutes(srv *server.Server) {

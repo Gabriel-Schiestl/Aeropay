@@ -3,6 +3,7 @@ package dto
 import "github.com/shopspring/decimal"
 
 type CreatePaymentDTO struct {
+	IdempotencyKey string  `json:"idempotency_key" binding:"required"`
 	Amount   decimal.Decimal `json:"amount" binding:"required"`
 	Currency string  `json:"currency" binding:"required"`
 	From    string  `json:"from" binding:"required"`

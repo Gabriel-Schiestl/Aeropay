@@ -3,10 +3,14 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"os"
+	"strconv"
+	"time"
 
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/domain"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/domain/exception"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/domain/ports"
+	"github.com/shopspring/decimal"
 )
 
 type paymentRepository struct {
@@ -16,6 +20,10 @@ type paymentRepository struct {
 	debitStmt             *sql.Stmt
 	creditStmt            *sql.Stmt
 	selectAccountLockStmt *sql.Stmt
+	insertIdempotencyKeyStmt *sql.Stmt
+	selectIdempotencyKeyStmt *sql.Stmt
+	getPaymentByIdStmt     *sql.Stmt
+	ttl				int
 }
 
 func NewPaymentRepository(db *sql.DB) ports.PaymentRepository {
@@ -46,6 +54,28 @@ func NewPaymentRepository(db *sql.DB) ports.PaymentRepository {
 		panic(err)
 	}
 
+	insertIdempotencyKeyStmt, err := db.PrepareContext(ctx, `INSERT INTO idempotency_keys (key, request_hash, status, expires_at) VALUES ($1, $2, 'processing', $4)`)
+	if err != nil {
+		panic(err)
+	}
+
+	selectIdempotencyKeyStmt, err := db.PrepareContext(ctx, `SELECT key, request_hash, status, expires_at, payment_id FROM idempotency_keys WHERE key = $1`)
+	if err != nil {
+		panic(err)
+	}
+
+	getPaymentByIdStmt, err := db.PrepareContext(ctx, `SELECT id, amount, currency, from_account, to_account FROM payments WHERE id = $1`)
+	if err != nil {
+		panic(err)
+	}
+
+	ttl := 0
+	if ttlStr := os.Getenv("IDEMPOTENCY_KEY_TTL"); ttlStr != "" {
+		if t, err := strconv.Atoi(ttlStr); err == nil {
+			ttl = t
+		}
+	}
+
 	return &paymentRepository{
 		db:                    db,
 		paymentStmt:           paymentStmt,
@@ -53,7 +83,112 @@ func NewPaymentRepository(db *sql.DB) ports.PaymentRepository {
 		debitStmt:             debitStmt,
 		creditStmt:            creditStmt,
 		selectAccountLockStmt: selectAccountLockStmt,
+		insertIdempotencyKeyStmt: insertIdempotencyKeyStmt,
+		selectIdempotencyKeyStmt: selectIdempotencyKeyStmt,
+		getPaymentByIdStmt: getPaymentByIdStmt,
+		ttl: ttl,
 	}
+}
+
+func (r *paymentRepository) SaveIdempotencyKey(ctx context.Context, key, requestHash string) (*domain.Payment, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		existent, status, paymentID, hash string
+		expiresAt time.Time
+	)
+
+	err = tx.StmtContext(ctx, r.selectIdempotencyKeyStmt).QueryRowContext(ctx, key).Scan(&existent, &hash, &status, &expiresAt, &paymentID)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			return nil, err
+		}
+	}
+
+	//TODO: refactor this logic to be more readable and maintainable
+	if existent != "" {
+		switch status {
+		case "processing":
+			return nil, exception.ErrIdempotencyKeyProcessing
+		case "completed":
+			if hash != requestHash && expiresAt.After(time.Now()) {
+				return nil, exception.ErrIdempotencyKeyAlreadyUsed
+			}
+
+			if hash != requestHash && expiresAt.Before(time.Now()) {
+				err := r.updateIdempotencyKey(ctx, tx, key, requestHash)
+				if err != nil {
+					tx.Rollback()
+					return nil, err
+				}
+				err = tx.Commit()
+				if err != nil {
+					tx.Rollback()
+					return nil, err
+				}
+				return nil, nil
+			}
+			payment, err := r.getPaymentById(ctx, tx, paymentID)
+			if err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+			return payment, nil
+		case "error":
+			if hash != requestHash {
+				return nil, exception.ErrIdempotencyKeyAlreadyUsed
+			}
+			return nil, exception.ErrIdempotencyKeyError
+		}
+	}
+	_, err = tx.StmtContext(ctx, r.insertIdempotencyKeyStmt).ExecContext(ctx, key, requestHash, time.Now().Add(time.Duration(r.ttl)*time.Second))
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+func (r *paymentRepository) updateIdempotencyKey(ctx context.Context, tx *sql.Tx, key, requestHash string) error {
+	_, err := tx.ExecContext(ctx, `UPDATE idempotency_keys SET request_hash = $1, status = 'processing', expires_at = $2 WHERE key = $3`, requestHash, time.Now().Add(time.Duration(r.ttl)*time.Second), key)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *paymentRepository) getPaymentById(ctx context.Context, tx *sql.Tx, paymentID string) (*domain.Payment, error) {
+	var (
+		id, amount, currency, from, to string
+	)
+	err := tx.QueryRowContext(ctx, `SELECT id, amount, currency, from_account, to_account FROM payments WHERE id = $1`, paymentID).Scan(&id, &amount, &currency, &from, &to)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, exception.ErrPaymentNotFound
+		}
+		return nil, err
+	}
+
+	dec, err := decimal.NewFromString(amount)
+	if err != nil {
+		return nil, err
+	}
+
+	payment, err := domain.LoadPayment(id, dec, currency, from, to)
+	if err != nil {
+		return nil, err
+	}
+	return payment, nil
 }
 
 func (r *paymentRepository) Save(ctx context.Context, payment *domain.Payment) error {

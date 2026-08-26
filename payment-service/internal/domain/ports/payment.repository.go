@@ -8,4 +8,5 @@ import (
 
 type PaymentRepository interface {
 	Save(ctx context.Context, payment *domain.Payment) error
+	SaveIdempotencyKey(ctx context.Context, key, requestHash string) (*domain.Payment, error)
 }
