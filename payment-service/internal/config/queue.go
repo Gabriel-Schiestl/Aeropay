@@ -8,6 +8,7 @@ type QueueConfig struct {
 	MaxConsumers  int      `env:"QUEUE_MAX_CONSUMERS" envDefault:"5"`
 	ConsumerGroup string   `env:"QUEUE_CONSUMER_GROUP"`
 	InstanceID    string   `env:"QUEUE_INSTANCE_ID"`
+	TopicMaxPartitions int `env:"QUEUE_TOPIC_MAX_PARTITIONS" envDefault:"3"`
 }
 
 func LoadQueueConfig() *QueueConfig {

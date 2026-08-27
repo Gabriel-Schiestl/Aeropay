@@ -3,11 +3,14 @@ package queue
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/config"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/domain/ports"
+	"github.com/twmb/franz-go/pkg/kadm"
+	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
@@ -44,6 +47,30 @@ func NewConsumer[T any](config *config.QueueConfig, handler func(props T) error)
 
 func (p *publisher[T]) Close() {
 	p.client.Close()
+}
+
+func (p *publisher[T]) CreateTopic() error {
+	adminClient := kadm.NewClient(p.client)
+
+	resp, err := adminClient.CreateTopics(context.Background(), int32(p.config.TopicMaxPartitions), 1, nil, p.config.Topic)
+	if err != nil {
+		panic(err) 
+	}
+
+	for _, ctr := range resp {
+		if ctr.Err != nil {
+			if errors.Is(ctr.Err, kerr.TopicAlreadyExists) {
+				fmt.Println("Topic already exists.")
+			} else {
+				fmt.Printf("Failed: %v\n", ctr.Err)
+				return ctr.Err
+			}
+		} else {
+			fmt.Println("Topic created.")
+		}
+	}
+
+	return nil
 }
 
 func (p *publisher[T]) Publish(message T) error {

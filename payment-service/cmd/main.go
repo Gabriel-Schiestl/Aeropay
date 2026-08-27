@@ -52,6 +52,9 @@ func main() {
 		fx.Invoke(observability.RegisterDBCollector),
 		fx.Invoke(func(lc fx.Lifecycle, srv *server.Server, httpConfig *config.HTTPConfig, coreController *controller.CoreController, publisher ports.Publisher[dto.CreatePaymentDTO]) {
 			coreController.RegisterRoutes(srv)
+			if err := publisher.CreateTopic(); err != nil {
+				panic(err)
+			}
 
 			lc.Append(fx.Hook{
 				OnStart: func(context.Context) error {

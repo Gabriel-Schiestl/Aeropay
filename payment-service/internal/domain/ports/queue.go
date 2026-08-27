@@ -5,6 +5,7 @@ import "context"
 type Publisher[T any] interface {
 	Publish(message T) error
 	Close()
+	CreateTopic() error
 }
 
 type Consumer interface {
