@@ -54,7 +54,7 @@ func NewPaymentRepository(db *sql.DB) ports.PaymentRepository {
 		panic(err)
 	}
 
-	insertIdempotencyKeyStmt, err := db.PrepareContext(ctx, `INSERT INTO idempotency_keys (key, request_hash, status, expires_at) VALUES ($1, $2, 'processing', $4)`)
+	insertIdempotencyKeyStmt, err := db.PrepareContext(ctx, `INSERT INTO idempotency_keys (key, request_hash, status, expires_at) VALUES ($1, $2, 'processing', $3)`)
 	if err != nil {
 		panic(err)
 	}

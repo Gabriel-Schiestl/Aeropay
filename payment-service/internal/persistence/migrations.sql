@@ -27,3 +27,19 @@ CREATE INDEX IF NOT EXISTS idx_payments_from_account ON payments (from_account);
 CREATE INDEX IF NOT EXISTS idx_payments_to_account ON payments (to_account);
 CREATE INDEX IF NOT EXISTS idx_ledger_payment_id ON ledger (payment_id);
 CREATE INDEX IF NOT EXISTS idx_ledger_account ON ledger (account);
+
+DO $$
+BEGIN
+    CREATE TYPE idempotency_key_status AS ENUM ('processing', 'completed', 'error');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+    key          UUID PRIMARY KEY,
+    request_hash TEXT NOT NULL,
+    status       idempotency_key_status NOT NULL DEFAULT 'processing',
+    payment_id   UUID REFERENCES payments (id),
+    expires_at   TIMESTAMPTZ NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);

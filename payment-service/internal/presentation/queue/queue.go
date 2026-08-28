@@ -14,6 +14,10 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
+type Handler[T any] interface {
+	Execute(ctx context.Context, props T) error
+}
+
 type publisher[T any] struct {
 	client *kgo.Client
 	config *config.QueueConfig
@@ -21,7 +25,7 @@ type publisher[T any] struct {
 
 type consumer[T any] struct {
 	config  *config.QueueConfig
-	handler func(props T) error
+	handler Handler[T]
 }
 
 func NewPublisher[T any](config *config.QueueConfig) ports.Publisher[T] {
@@ -38,7 +42,7 @@ func NewPublisher[T any](config *config.QueueConfig) ports.Publisher[T] {
 	}
 }
 
-func NewConsumer[T any](config *config.QueueConfig, handler func(props T) error) *consumer[T] {
+func NewConsumer[T any](config *config.QueueConfig, handler Handler[T]) *consumer[T] {
 	return &consumer[T]{
 		config:  config,
 		handler: handler,
@@ -112,7 +116,7 @@ func (q *consumer[T]) Consume(ctx context.Context) error {
 				fetches := client.PollFetches(ctx)
 
 				fetches.EachRecord(func(r *kgo.Record) {
-					q.processRecord(r)
+					q.processRecord(ctx, r)
 				})
 
 				if err := fetches.Errors(); len(err) > 0 {
@@ -131,14 +135,14 @@ func (q *consumer[T]) Consume(ctx context.Context) error {
 	return nil
 }
 
-func (q *consumer[T]) processRecord(r *kgo.Record) {
+func (q *consumer[T]) processRecord(ctx context.Context, r *kgo.Record) {
 	var message T
 	if err := json.Unmarshal(r.Value, &message); err != nil {
 		fmt.Printf("error unmarshalling record: %v\n", err)
 		return
 	}
 
-	if err := q.handler(message); err != nil {
+	if err := q.handler.Execute(ctx, message); err != nil {
 		fmt.Printf("error processing message: %v\n", err)
 	}
 }

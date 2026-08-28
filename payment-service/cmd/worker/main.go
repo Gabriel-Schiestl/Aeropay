@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log"
 
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/application/dto"
@@ -25,7 +26,17 @@ func main() {
 	app := fx.New(
 		fx.Provide(config.LoadDBConfig, config.LoadQueueConfig),
 		fx.Provide(persistence.NewDB),
-		fx.Provide(usecase.NewCreatePaymentUseCase),
+		fx.Invoke(func(db *sql.DB, dbConfig *config.DBConfig) {
+			if err := persistence.RunMigrations(db, dbConfig); err != nil {
+				panic(err)
+			}
+		}),
+		fx.Provide(
+			fx.Annotate(
+				usecase.NewCreatePaymentUseCase,
+				fx.As(new(queue.Handler[dto.CreatePaymentDTO])),
+			),
+		),
 		fx.Provide(
 			fx.Annotate(
 				repository.NewPaymentRepository,
@@ -39,7 +50,7 @@ func main() {
 			),
 		),
 		fx.Invoke(observability.RegisterDBCollector),
-		fx.Invoke(func(lc fx.Lifecycle, consumer ports.Consumer, useCase *usecase.CreatePaymentUseCase, queueConfig *config.QueueConfig) {
+		fx.Invoke(func(lc fx.Lifecycle, consumer ports.Consumer, queueConfig *config.QueueConfig) {
 			ctx, cancel := context.WithCancel(context.Background())
 
 			lc.Append(fx.Hook{
