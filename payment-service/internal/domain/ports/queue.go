@@ -3,7 +3,7 @@ package ports
 import "context"
 
 type Publisher[T any] interface {
-	Publish(message T) error
+	Publish(message T, key string) error
 	Close()
 	CreateTopic() error
 }

@@ -34,7 +34,7 @@ func (uc *PaymentService) Create(ctx context.Context, props dto.CreatePaymentDTO
 	}
 
 	if payment == nil {
-		uc.publisher.Publish(props)
+		uc.publisher.Publish(props, props.From)
 		return nil, nil
 	}
 

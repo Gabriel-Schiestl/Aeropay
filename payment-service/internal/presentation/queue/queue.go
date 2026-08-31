@@ -77,7 +77,7 @@ func (p *publisher[T]) CreateTopic() error {
 	return nil
 }
 
-func (p *publisher[T]) Publish(message T) error {
+func (p *publisher[T]) Publish(message T, key string) error {
 	data, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
@@ -85,6 +85,7 @@ func (p *publisher[T]) Publish(message T) error {
 
 	record := &kgo.Record{
 		Topic: p.config.Topic,
+		Key: []byte(key),
 		Value: data,
 	}
 
