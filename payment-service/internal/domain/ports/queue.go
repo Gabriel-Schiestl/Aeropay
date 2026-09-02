@@ -2,8 +2,8 @@ package ports
 
 import "context"
 
-type Publisher[T any] interface {
-	Publish(message T, key string) error
+type Publisher interface {
+	Publish(message any, key string) error
 	Close()
 	CreateTopic() error
 }

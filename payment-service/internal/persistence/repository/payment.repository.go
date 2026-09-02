@@ -3,10 +3,12 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"os"
 	"strconv"
 	"time"
 
+	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/application/dto"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/domain"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/domain/exception"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/domain/ports"
@@ -23,6 +25,7 @@ type paymentRepository struct {
 	insertIdempotencyKeyStmt *sql.Stmt
 	selectIdempotencyKeyStmt *sql.Stmt
 	getPaymentByIdStmt     *sql.Stmt
+	insertOutboxStmt         *sql.Stmt
 	ttl				int
 }
 
@@ -69,6 +72,11 @@ func NewPaymentRepository(db *sql.DB) ports.PaymentRepository {
 		panic(err)
 	}
 
+	insertOutboxStmt, err := db.PrepareContext(ctx, `INSERT INTO payments_outbox (event_type, payload) VALUES ($1, $2)`)
+	if err != nil {
+		panic(err)
+	}
+
 	ttl := 0
 	if ttlStr := os.Getenv("IDEMPOTENCY_KEY_TTL"); ttlStr != "" {
 		if t, err := strconv.Atoi(ttlStr); err == nil {
@@ -86,11 +94,12 @@ func NewPaymentRepository(db *sql.DB) ports.PaymentRepository {
 		insertIdempotencyKeyStmt: insertIdempotencyKeyStmt,
 		selectIdempotencyKeyStmt: selectIdempotencyKeyStmt,
 		getPaymentByIdStmt: getPaymentByIdStmt,
+		insertOutboxStmt: insertOutboxStmt,
 		ttl: ttl,
 	}
 }
 
-func (r *paymentRepository) SaveIdempotencyKey(ctx context.Context, key, requestHash string) (*domain.Payment, error) {
+func (r *paymentRepository) SaveIdempotencyKey(ctx context.Context, payload dto.CreatePaymentDTO, key, requestHash string) (*domain.Payment, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -145,6 +154,18 @@ func (r *paymentRepository) SaveIdempotencyKey(ctx context.Context, key, request
 		}
 	}
 	_, err = tx.StmtContext(ctx, r.insertIdempotencyKeyStmt).ExecContext(ctx, key, requestHash, time.Now().Add(time.Duration(r.ttl)*time.Second))
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	jsonBody, err := json.Marshal(payload)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	_, err = tx.StmtContext(ctx, r.insertOutboxStmt).ExecContext(ctx, "create_payment", string(jsonBody))
 	if err != nil {
 		tx.Rollback()
 		return nil, err

@@ -18,7 +18,7 @@ type Handler[T any] interface {
 	Execute(ctx context.Context, props T) error
 }
 
-type publisher[T any] struct {
+type publisher struct {
 	client *kgo.Client
 	config *config.QueueConfig
 }
@@ -28,7 +28,7 @@ type consumer[T any] struct {
 	handler Handler[T]
 }
 
-func NewPublisher[T any](config *config.QueueConfig) ports.Publisher[T] {
+func NewPublisher(config *config.QueueConfig) ports.Publisher {
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(config.Brokers...),
 	)
@@ -36,7 +36,7 @@ func NewPublisher[T any](config *config.QueueConfig) ports.Publisher[T] {
 		panic(fmt.Sprintf("failed to create Kafka client: %v", err))
 	}
 
-	return &publisher[T]{
+	return &publisher{
 		client: client,
 		config: config,
 	}
@@ -49,11 +49,11 @@ func NewConsumer[T any](config *config.QueueConfig, handler Handler[T]) *consume
 	}
 }
 
-func (p *publisher[T]) Close() {
+func (p *publisher) Close() {
 	p.client.Close()
 }
 
-func (p *publisher[T]) CreateTopic() error {
+func (p *publisher) CreateTopic() error {
 	adminClient := kadm.NewClient(p.client)
 
 	resp, err := adminClient.CreateTopics(context.Background(), int32(p.config.TopicMaxPartitions), 1, nil, p.config.Topic)
@@ -77,7 +77,7 @@ func (p *publisher[T]) CreateTopic() error {
 	return nil
 }
 
-func (p *publisher[T]) Publish(message T, key string) error {
+func (p *publisher) Publish(message any, key string) error {
 	data, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)

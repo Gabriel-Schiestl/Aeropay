@@ -9,6 +9,8 @@ type QueueConfig struct {
 	ConsumerGroup string   `env:"QUEUE_CONSUMER_GROUP"`
 	InstanceID    string   `env:"QUEUE_INSTANCE_ID"`
 	TopicMaxPartitions int `env:"QUEUE_TOPIC_MAX_PARTITIONS" envDefault:"3"`
+	OutboxPollInterval int `env:"OUTBOX_POLL_INTERVAL" envDefault:"5"`
+	OutboxBatchSize int `env:"OUTBOX_BATCH_SIZE" envDefault:"10"`
 }
 
 func LoadQueueConfig() *QueueConfig {

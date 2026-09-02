@@ -43,3 +43,19 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
     expires_at   TIMESTAMPTZ NOT NULL,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+DO $$
+BEGIN
+    CREATE TYPE payments_outbox_status AS ENUM ('pending', 'sent', 'error');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS payments_outbox (
+    id         BIGSERIAL PRIMARY KEY,
+    status     payments_outbox_status NOT NULL DEFAULT 'pending',
+    event_type TEXT NOT NULL,
+    key        UUID NOT NULL,
+    payload    JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

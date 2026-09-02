@@ -12,10 +12,10 @@ import (
 
 type PaymentService struct {
 	repository ports.PaymentRepository
-	publisher  ports.Publisher[dto.CreatePaymentDTO]
+	publisher  ports.Publisher
 }
 
-func NewPaymentService(repository ports.PaymentRepository, publisher ports.Publisher[dto.CreatePaymentDTO]) *PaymentService {
+func NewPaymentService(repository ports.PaymentRepository, publisher ports.Publisher) *PaymentService {
 	return &PaymentService{
 		repository: repository,
 		publisher:  publisher,
@@ -28,14 +28,9 @@ func (uc *PaymentService) Create(ctx context.Context, props dto.CreatePaymentDTO
 		return nil, err
 	}
 
-	payment, err := uc.repository.SaveIdempotencyKey(ctx, props.IdempotencyKey, requestHash)
+	payment, err := uc.repository.SaveIdempotencyKey(ctx, props, props.IdempotencyKey, requestHash)
 	if err != nil {
 		return nil, err
-	}
-
-	if payment == nil {
-		uc.publisher.Publish(props, props.From)
-		return nil, nil
 	}
 
 	return payment, nil
