@@ -119,6 +119,7 @@ func publishPendingMessages(ctx context.Context, publisher ports.Publisher, db *
 		messages = append(messages, message)
 	}
 
+	// TODO: handle each event type in a separate function to avoid a large switch statement
 	processed := make([]int, len(messages))
 	for _, message := range messages {
 		switch message.EventType {

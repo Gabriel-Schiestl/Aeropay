@@ -42,6 +42,28 @@ services:
         reservations:
           cpus: "0.5"
           memory: 256M
+  
+  outbox_worker:
+    image: payment-service-outbox-worker:latest
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile.outbox-worker
+    env_file:
+      - ./payment-service/.env
+    depends_on:
+      db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 96M
+        reservations:
+          cpus: "0.25"
+          memory: 32M
 
   db:
     image: postgres:latest
