@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
 
 DO $$
 BEGIN
-    CREATE TYPE payments_outbox_status AS ENUM ('pending', 'sent', 'error');
+    CREATE TYPE payments_outbox_status AS ENUM ('pending', 'processed', 'error');
 EXCEPTION
     WHEN duplicate_object THEN NULL;
 END $$;

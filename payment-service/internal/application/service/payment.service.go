@@ -12,13 +12,11 @@ import (
 
 type PaymentService struct {
 	repository ports.PaymentRepository
-	publisher  ports.Publisher
 }
 
-func NewPaymentService(repository ports.PaymentRepository, publisher ports.Publisher) *PaymentService {
+func NewPaymentService(repository ports.PaymentRepository) *PaymentService {
 	return &PaymentService{
 		repository: repository,
-		publisher:  publisher,
 	}
 }
 

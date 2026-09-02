@@ -28,9 +28,23 @@ func RunMigrations(db *sql.DB, dbConfig *config.DBConfig) error {
 		return fmt.Errorf("failed to read SQL file: %w", err)
 	}
 
-	_, err = db.Exec(string(sqlBytes))
+	tx, err := db.Begin()
 	if err != nil {
+		return fmt.Errorf("failed to begin migration transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// All service processes may start together, so serialize schema creation per database.
+	if _, err = tx.Exec("SELECT pg_advisory_xact_lock(8675309)"); err != nil {
+		return fmt.Errorf("failed to acquire migration lock: %w", err)
+	}
+
+	if _, err = tx.Exec(string(sqlBytes)); err != nil {
 		return fmt.Errorf("failed to execute SQL migrations: %w", err)
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit SQL migrations: %w", err)
 	}
 
 	fmt.Println("Database migrations completed successfully")
