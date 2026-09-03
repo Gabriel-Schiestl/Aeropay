@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log"
 	"os"
 	"strconv"
 	"time"
@@ -26,6 +27,8 @@ type paymentRepository struct {
 	selectIdempotencyKeyStmt *sql.Stmt
 	getPaymentByIdStmt     *sql.Stmt
 	insertOutboxStmt         *sql.Stmt
+	completeIdempotencyKeyStmt *sql.Stmt
+	errorIdempotencyKeyStmt    *sql.Stmt
 	ttl				int
 }
 
@@ -77,6 +80,16 @@ func NewPaymentRepository(db *sql.DB) ports.PaymentRepository {
 		panic(err)
 	}
 
+	completeIdempotencyKeyStmt, err := db.PrepareContext(ctx, `UPDATE idempotency_keys SET status = 'completed', payment_id = $1 WHERE key = $2`)
+	if err != nil {
+		panic(err)
+	}
+
+	errorIdempotencyKeyStmt, err := db.PrepareContext(ctx, `UPDATE idempotency_keys SET status = 'error' WHERE key = $1`)
+	if err != nil {
+		panic(err)
+	}
+
 	ttl := 0
 	if ttlStr := os.Getenv("IDEMPOTENCY_KEY_TTL"); ttlStr != "" {
 		if t, err := strconv.Atoi(ttlStr); err == nil {
@@ -95,6 +108,8 @@ func NewPaymentRepository(db *sql.DB) ports.PaymentRepository {
 		selectIdempotencyKeyStmt: selectIdempotencyKeyStmt,
 		getPaymentByIdStmt: getPaymentByIdStmt,
 		insertOutboxStmt: insertOutboxStmt,
+		completeIdempotencyKeyStmt: completeIdempotencyKeyStmt,
+		errorIdempotencyKeyStmt:    errorIdempotencyKeyStmt,
 		ttl: ttl,
 	}
 }
@@ -212,7 +227,7 @@ func (r *paymentRepository) getPaymentById(ctx context.Context, tx *sql.Tx, paym
 	return payment, nil
 }
 
-func (r *paymentRepository) Save(ctx context.Context, payment *domain.Payment) error {
+func (r *paymentRepository) Save(ctx context.Context, payment *domain.Payment, idempotencyKey string) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -226,40 +241,59 @@ func (r *paymentRepository) Save(ctx context.Context, payment *domain.Payment) e
 	err = r.lockAccount(ctx, tx, first)
 	if err != nil {
 		tx.Rollback()
+		r.markIdempotencyKeyError(ctx, idempotencyKey)
 		return err
 	}
 
 	err = r.lockAccount(ctx, tx, second)
 	if err != nil {
 		tx.Rollback()
+		r.markIdempotencyKeyError(ctx, idempotencyKey)
 		return err
 	}
 
 	_, err = tx.StmtContext(ctx, r.paymentStmt).ExecContext(ctx, payment.ID(), payment.Amount().String(), payment.Currency().String(), payment.From(), payment.To())
 	if err != nil {
 		tx.Rollback()
+		r.markIdempotencyKeyError(ctx, idempotencyKey)
 		return err
 	}
 
 	err = r.debitAccount(ctx, tx, payment)
 	if err != nil {
 		tx.Rollback()
+		r.markIdempotencyKeyError(ctx, idempotencyKey)
 		return err
 	}
 
 	err = r.creditAccount(ctx, tx, payment)
 	if err != nil {
 		tx.Rollback()
+		r.markIdempotencyKeyError(ctx, idempotencyKey)
+		return err
+	}
+
+	_, err = tx.StmtContext(ctx, r.completeIdempotencyKeyStmt).ExecContext(ctx, payment.ID(), idempotencyKey)
+	if err != nil {
+		tx.Rollback()
+		r.markIdempotencyKeyError(ctx, idempotencyKey)
 		return err
 	}
 
 	err = tx.Commit()
 	if err != nil {
 		tx.Rollback()
+		r.markIdempotencyKeyError(ctx, idempotencyKey)
 		return err
 	}
 
 	return nil
+}
+
+func (r *paymentRepository) markIdempotencyKeyError(ctx context.Context, idempotencyKey string) {
+	if _, err := r.errorIdempotencyKeyStmt.ExecContext(ctx, idempotencyKey); err != nil {
+		log.Printf("failed to mark idempotency key %s as error: %v", idempotencyKey, err)
+	}
 }
 
 func (r *paymentRepository) lockAccount(ctx context.Context, tx *sql.Tx, accountID string) error {

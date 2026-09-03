@@ -8,6 +8,6 @@ import (
 )
 
 type PaymentRepository interface {
-	Save(ctx context.Context, payment *domain.Payment) error
+	Save(ctx context.Context, payment *domain.Payment, idempotencyKey string) error
 	SaveIdempotencyKey(ctx context.Context, payload dto.CreatePaymentDTO, key, requestHash string) (*domain.Payment, error)
 }

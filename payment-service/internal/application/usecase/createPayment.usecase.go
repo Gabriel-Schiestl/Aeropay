@@ -24,7 +24,7 @@ func (uc *CreatePaymentUseCase) Execute(ctx context.Context, props dto.CreatePay
 		return err
 	}
 
-	err = uc.repository.Save(ctx, payment)
+	err = uc.repository.Save(ctx, payment, props.IdempotencyKey)
 	if err != nil {
 		return err
 	}
