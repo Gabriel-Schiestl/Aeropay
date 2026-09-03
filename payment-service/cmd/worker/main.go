@@ -13,6 +13,7 @@ import (
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/persistence"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/persistence/repository"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/presentation/queue"
+	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/presentation/server"
 	"github.com/joho/godotenv"
 	"go.uber.org/fx"
 )
@@ -24,7 +25,7 @@ func main() {
 	}
 
 	app := fx.New(
-		fx.Provide(config.LoadDBConfig, config.LoadQueueConfig),
+		fx.Provide(server.NewServer, config.LoadHTTPConfig, config.LoadDBConfig, config.LoadQueueConfig),
 		fx.Provide(persistence.NewDB),
 		fx.Invoke(func(db *sql.DB, dbConfig *config.DBConfig) {
 			if err := persistence.RunMigrations(db, dbConfig); err != nil {
@@ -34,7 +35,7 @@ func main() {
 		fx.Provide(
 			fx.Annotate(
 				usecase.NewCreatePaymentUseCase,
-				fx.As(new(queue.Handler[dto.CreatePaymentDTO])),
+				fx.As(new(queue.Handler[dto.PaymentAcceptedEvent])),
 			),
 		),
 		fx.Provide(
@@ -45,11 +46,27 @@ func main() {
 		),
 		fx.Provide(
 			fx.Annotate(
-				queue.NewConsumer[dto.CreatePaymentDTO],
+				queue.NewConsumer[dto.PaymentAcceptedEvent],
 				fx.As(new(ports.Consumer)),
 			),
 		),
 		fx.Invoke(observability.RegisterDBCollector),
+		fx.Invoke(func(lc fx.Lifecycle, srv *server.Server, httpConfig *config.HTTPConfig) {
+			lc.Append(fx.Hook{
+				OnStart: func(context.Context) error {
+					go func() {
+						if err := srv.Start(httpConfig.Port); err != nil {
+							log.Printf("metrics server error: %v", err)
+						}
+					}()
+					log.Printf("Metrics server started on port %s", httpConfig.Port)
+					return nil
+				},
+				OnStop: func(ctx context.Context) error {
+					return srv.Shutdown(ctx)
+				},
+			})
+		}),
 		fx.Invoke(func(lc fx.Lifecycle, consumer ports.Consumer, queueConfig *config.QueueConfig) {
 			ctx, cancel := context.WithCancel(context.Background())
 

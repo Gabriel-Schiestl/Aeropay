@@ -5,24 +5,61 @@
   "version": 1,
   "editable": true,
   "timezone": "browser",
-  "time": { "from": "now-15m", "to": "now" },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
   "refresh": "5s",
   "panels": [
-    { "type": "row", "title": "RED - HTTP (what the client feels)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 } },
+    {
+      "type": "row",
+      "title": "RED - HTTP (what the client feels)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
     {
       "type": "timeseries",
       "title": "Throughput (req/s)",
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 1 },
-      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
       "targets": [
-        { "expr": "sum(rate(http_requests_total[1m])) by (path)", "legendFormat": "{{path}}" }
+        {
+          "expr": "sum(rate(http_requests_total[1m])) by (path)",
+          "legendFormat": "{{path}}"
+        }
       ]
     },
     {
       "type": "timeseries",
       "title": "5xx error rate (%)",
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 1 },
-      "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 }, "overrides": [] },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "min": 0
+        },
+        "overrides": []
+      },
       "targets": [
         {
           "expr": "100 * sum(rate(http_requests_total{status=~\"5..\"}[1m])) / clamp_min(sum(rate(http_requests_total[1m])), 1e-9)",
@@ -33,94 +70,391 @@
     {
       "type": "timeseries",
       "title": "Latency (p50 / p95 / p99)",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
-      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
       "targets": [
-        { "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))", "legendFormat": "p50" },
-        { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))", "legendFormat": "p95" },
-        { "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))", "legendFormat": "p99" }
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p99"
+        }
       ]
     },
-
-    { "type": "row", "title": "USE - Go application (why it saturates)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 } },
+    {
+      "type": "row",
+      "title": "USE - Go application (why it saturates)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      }
+    },
     {
       "type": "timeseries",
       "title": "Process CPU (% of 1 core)",
       "description": "Compare against the container CPU limit (docker-compose: cpus: \"1\"). Near 100% = compute-bound.",
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 10 },
-      "fieldConfig": { "defaults": { "unit": "percent" }, "overrides": [] },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
       "targets": [
-        { "expr": "100 * rate(process_cpu_seconds_total{job=\"payment-service\"}[1m])", "legendFormat": "cpu %" }
+        {
+          "expr": "100 * rate(process_cpu_seconds_total{job=\"payment-service\"}[1m])",
+          "legendFormat": "cpu %"
+        }
       ]
     },
     {
       "type": "timeseries",
       "title": "Resident memory (RSS)",
       "description": "Compare against the container's 512M limit. Continuous growth that never stabilizes = leak.",
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 10 },
-      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
       "targets": [
-        { "expr": "process_resident_memory_bytes{job=\"payment-service\"}", "legendFormat": "RSS" }
+        {
+          "expr": "process_resident_memory_bytes{job=\"payment-service\"}",
+          "legendFormat": "RSS"
+        }
       ]
     },
     {
       "type": "timeseries",
       "title": "Active goroutines",
       "description": "Uncontrolled growth under load = goroutines stuck (e.g. waiting on a DB lock or an exhausted pool).",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 10 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 10
+      },
       "targets": [
-        { "expr": "go_goroutines{job=\"payment-service\"}", "legendFormat": "goroutines" }
+        {
+          "expr": "go_goroutines{job=\"payment-service\"}",
+          "legendFormat": "goroutines"
+        }
       ]
     },
-
-    { "type": "row", "title": "USE - DB connection pool (Go)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 } },
+    {
+      "type": "row",
+      "title": "USE - DB connection pool (Go)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      }
+    },
     {
       "type": "timeseries",
       "title": "Connections: open / in-use / idle",
       "description": "If in-use stays pinned at MaxOpenConns (DB_MAX_OPEN_CONNS), the pool is the bottleneck - not Postgres.",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 19
+      },
       "targets": [
-        { "expr": "go_sql_open_connections{db_name=\"payment_service\"}", "legendFormat": "open" },
-        { "expr": "go_sql_in_use_connections{db_name=\"payment_service\"}", "legendFormat": "in_use" },
-        { "expr": "go_sql_idle_connections{db_name=\"payment_service\"}", "legendFormat": "idle" },
-        { "expr": "go_sql_max_open_connections{db_name=\"payment_service\"}", "legendFormat": "max_open (config)" }
+        {
+          "expr": "go_sql_open_connections{db_name=\"payment_service\"}",
+          "legendFormat": "open"
+        },
+        {
+          "expr": "go_sql_in_use_connections{db_name=\"payment_service\"}",
+          "legendFormat": "in_use"
+        },
+        {
+          "expr": "go_sql_idle_connections{db_name=\"payment_service\"}",
+          "legendFormat": "idle"
+        },
+        {
+          "expr": "go_sql_max_open_connections{db_name=\"payment_service\"}",
+          "legendFormat": "max_open (config)"
+        }
       ]
     },
     {
       "type": "timeseries",
       "title": "Connection wait (count / duration)",
       "description": "Rising wait_count = requests queuing on the pool before ever reaching Postgres.",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 19
+      },
       "targets": [
-        { "expr": "rate(go_sql_wait_count_total{db_name=\"payment_service\"}[1m])", "legendFormat": "waits/s" },
-        { "expr": "rate(go_sql_wait_duration_seconds_total{db_name=\"payment_service\"}[1m])", "legendFormat": "wait time/s" }
+        {
+          "expr": "rate(go_sql_wait_count_total{db_name=\"payment_service\"}[1m])",
+          "legendFormat": "waits/s"
+        },
+        {
+          "expr": "rate(go_sql_wait_duration_seconds_total{db_name=\"payment_service\"}[1m])",
+          "legendFormat": "wait time/s"
+        }
       ]
     },
-
-    { "type": "row", "title": "USE - Postgres", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 } },
+    {
+      "type": "row",
+      "title": "USE - Postgres",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      }
+    },
     {
       "type": "timeseries",
       "title": "Active connections on Postgres",
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 28 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 28
+      },
       "targets": [
-        { "expr": "pg_stat_database_numbackends{datname=\"payment_service\"}", "legendFormat": "numbackends" }
+        {
+          "expr": "pg_stat_database_numbackends{datname=\"payment_service\"}",
+          "legendFormat": "numbackends"
+        }
       ]
     },
     {
       "type": "timeseries",
       "title": "Locks by mode",
       "description": "Under high concurrency on /payments, row locks (RowExclusive/Share) should scale with load without spiking - if they spike together with latency, that's lock contention (see commit 70f904a).",
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 28 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 28
+      },
       "targets": [
-        { "expr": "pg_locks_count{datname=\"payment_service\"}", "legendFormat": "{{mode}}" }
+        {
+          "expr": "pg_locks_count{datname=\"payment_service\"}",
+          "legendFormat": "{{mode}}"
+        }
       ]
     },
     {
       "type": "timeseries",
       "title": "Deadlocks (rate)",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 28 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 28
+      },
       "targets": [
-        { "expr": "rate(pg_stat_database_deadlocks{datname=\"payment_service\"}[1m])", "legendFormat": "deadlocks/s" }
+        {
+          "expr": "rate(pg_stat_database_deadlocks{datname=\"payment_service\"}[1m])",
+          "legendFormat": "deadlocks/s"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "v2 - Async processing (acceptance vs. settlement)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Acceptance vs. settlement throughput (req/s)",
+      "description": "Acceptance (POST /payments, always fast) vs. settlement (workers actually finishing a payment). If acceptance keeps climbing while settlement flattens, the backlog is growing even though clients see no errors.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 37
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{job=\"payment-service\",path=\"/payments\"}[1m]))",
+          "legendFormat": "accepted"
+        },
+        {
+          "expr": "sum(rate(payment_processing_duration_seconds_count{job=\"payment-service-workers\"}[1m]))",
+          "legendFormat": "settled"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Outbox backlog (pending rows)",
+      "description": "The single most direct signal of whether processing is keeping up: draining/flat = healthy, monotonically growing = the real throughput ceiling has been found.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 37
+      },
+      "targets": [
+        {
+          "expr": "payments_outbox_pending{job=\"payment-service-outbox-worker\"}",
+          "legendFormat": "pending"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Settlement latency: accept -> processed (p50 / p95 / p99)",
+      "description": "Real end-to-end latency (time.Since(AcceptedAt) at the moment a worker finishes) - includes outbox poll delay and Kafka transit, not just the worker's own DB transaction time.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 45
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(payment_processing_duration_seconds_bucket{job=\"payment-service-workers\"}[1m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(payment_processing_duration_seconds_bucket{job=\"payment-service-workers\"}[1m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(payment_processing_duration_seconds_bucket{job=\"payment-service-workers\"}[1m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Settlement outcome (success vs. error, rate)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 45
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(payment_processing_duration_seconds_count{job=\"payment-service-workers\"}[1m])) by (outcome)",
+          "legendFormat": "{{outcome}}"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "USE - workers process",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 53
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "workers: CPU (% of 1 core) / goroutines",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 54
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "100 * rate(process_cpu_seconds_total{job=\"payment-service-workers\"}[1m])",
+          "legendFormat": "cpu %"
+        },
+        {
+          "expr": "go_goroutines{job=\"payment-service-workers\"}",
+          "legendFormat": "goroutines"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "workers: DB pool (in-use / wait)",
+      "description": "Same pool-exhaustion signature as v1 can reappear here - now on the workers process instead of web.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 54
+      },
+      "targets": [
+        {
+          "expr": "go_sql_in_use_connections{db_name=\"payment_service\",job=\"payment-service-workers\"}",
+          "legendFormat": "in_use"
+        },
+        {
+          "expr": "go_sql_max_open_connections{db_name=\"payment_service\",job=\"payment-service-workers\"}",
+          "legendFormat": "max_open (config)"
+        },
+        {
+          "expr": "rate(go_sql_wait_count_total{db_name=\"payment_service\",job=\"payment-service-workers\"}[1m])",
+          "legendFormat": "waits/s"
+        }
       ]
     }
   ]

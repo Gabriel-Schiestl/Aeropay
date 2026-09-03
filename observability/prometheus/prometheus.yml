@@ -7,6 +7,14 @@ scrape_configs:
     static_configs:
       - targets: ["web:8080"]
 
+  - job_name: payment-service-workers
+    static_configs:
+      - targets: ["workers:8080"]
+
+  - job_name: payment-service-outbox-worker
+    static_configs:
+      - targets: ["outbox_worker:8080"]
+
   - job_name: postgres
     static_configs:
       - targets: ["postgres-exporter:9187"]

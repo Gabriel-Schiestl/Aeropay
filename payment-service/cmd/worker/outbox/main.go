@@ -14,6 +14,7 @@ import (
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/persistence"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/persistence/model"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/presentation/queue"
+	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/presentation/server"
 	"github.com/joho/godotenv"
 	"go.uber.org/fx"
 )
@@ -25,7 +26,7 @@ func main() {
 	}
 
 	app := fx.New(
-		fx.Provide(config.LoadDBConfig, config.LoadQueueConfig),
+		fx.Provide(server.NewServer, config.LoadHTTPConfig, config.LoadDBConfig, config.LoadQueueConfig),
 		fx.Provide(persistence.NewDB),
 		fx.Invoke(func(db *sql.DB, dbConfig *config.DBConfig) {
 			if err := persistence.RunMigrations(db, dbConfig); err != nil {
@@ -39,6 +40,22 @@ func main() {
 			),
 		),
 		fx.Invoke(observability.RegisterDBCollector),
+		fx.Invoke(func(lc fx.Lifecycle, srv *server.Server, httpConfig *config.HTTPConfig) {
+			lc.Append(fx.Hook{
+				OnStart: func(context.Context) error {
+					go func() {
+						if err := srv.Start(httpConfig.Port); err != nil {
+							log.Printf("metrics server error: %v", err)
+						}
+					}()
+					log.Printf("Metrics server started on port %s", httpConfig.Port)
+					return nil
+				},
+				OnStop: func(ctx context.Context) error {
+					return srv.Shutdown(ctx)
+				},
+			})
+		}),
 		fx.Invoke(func(lc fx.Lifecycle, db *sql.DB, queueConfig *config.QueueConfig, publisher ports.Publisher) {
 			ctx, cancel := context.WithCancel(context.Background())
 
@@ -78,6 +95,12 @@ func publishOutboxMessages(ctx context.Context, publisher ports.Publisher, db *s
 	}
 	defer updateStmt.Close()
 
+	countPendingStmt, err := db.PrepareContext(ctx, `SELECT count(*) FROM payments_outbox WHERE status = 'pending'`)
+	if err != nil {
+		panic(err)
+	}
+	defer countPendingStmt.Close()
+
 	ticker := time.NewTicker(time.Duration(cfg.OutboxPollInterval) * time.Second)
 	defer ticker.Stop()
 
@@ -88,10 +111,18 @@ func publishOutboxMessages(ctx context.Context, publisher ports.Publisher, db *s
 			return
 		case <-ticker.C:
 			publishPendingMessages(ctx, publisher, db, cfg, selectStmt, updateStmt)
+			reportPendingBacklog(ctx, countPendingStmt)
 		}
 	}
+}
 
-	
+func reportPendingBacklog(ctx context.Context, countPendingStmt *sql.Stmt) {
+	var pending float64
+	if err := countPendingStmt.QueryRowContext(ctx).Scan(&pending); err != nil {
+		log.Printf("failed to count pending outbox rows: %v", err)
+		return
+	}
+	observability.SetOutboxPending(pending)
 }
 
 func publishPendingMessages(ctx context.Context, publisher ports.Publisher, db *sql.DB, cfg *config.QueueConfig, selectStmt, updateStmt *sql.Stmt) {
@@ -124,14 +155,14 @@ func publishPendingMessages(ctx context.Context, publisher ports.Publisher, db *
 	for _, message := range messages {
 		switch message.EventType {
 		case "create_payment":
-			var body dto.CreatePaymentDTO
+			var body dto.PaymentAcceptedEvent
 			err := json.Unmarshal([]byte(message.Payload), &body)
 			if err != nil {
 				log.Printf("failed to unmarshal message payload with ID %d: %v", message.ID, err)
 				continue
 			}
 
-			if err := publisher.Publish(message.Payload, body.From); err != nil {
+			if err := publisher.Publish(json.RawMessage(message.Payload), body.From); err != nil {
 				log.Printf("failed to publish message with ID %d: %v", message.ID, err)
 				continue
 			}

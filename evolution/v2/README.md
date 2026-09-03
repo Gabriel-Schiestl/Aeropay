@@ -1,6 +1,10 @@
 # Version 2 — asynchronous processing via Kafka + transactional outbox
 
-**Status: built, not yet load-tested.** This is the architectural response to v1's
+**Status: built and validated end-to-end for the first time.** Two blocking bugs (see
+"Known gaps" below) meant the async pipeline had never actually settled a payment
+before this round of validation. It now does, but the first real settlement numbers
+show a large new bottleneck (likely the Kafka consumer group setup) still to
+investigate. This is the architectural response to v1's
 [throughput ceiling](../v1/throughput_ceiling/README.md): a pool of DB connections
 capped at a realistic size (30) could sustain ~810 req/s of full synchronous
 processing, short of the SLO's 1000 req/s target, with no tuning fix available. v2
@@ -95,13 +99,6 @@ concurrently and would otherwise race on schema creation.
   key correctly marked `error`, at least, per the fix above — but nothing acts on that).
   The retry/backoff + DLQ design discussed earlier (business rejection vs. transient
   error vs. exhausted-retries) isn't implemented yet.
-- **No processing-side observability.** `/metrics` today only reports the `web`
-  process's HTTP-layer metrics (unchanged from v1) plus each process's own Go/DB-pool
-  stats. There is no `payment_processing_duration_seconds` histogram or queue-depth
-  gauge from the `workers`/`outbox_worker` processes yet. Without that, there is no way
-  to see the real settlement latency or whether the backlog is draining — which matters
-  more than ever now that `POST /payments` always returns fast regardless of whether
-  processing is keeping up.
 
 ## SLO, reframed for v2
 
@@ -115,8 +112,3 @@ per the earlier design discussion:
 - **Settlement** (real business outcome — debited, credited, or rejected): not
   observable from the HTTP response anymore. Needs the processing-side metrics listed
   above before it can be measured at all, let alone compared against a target.
-
-Until settlement is observable, a load test against v2 can only tell us whether
-*acceptance* clears the throughput bar — not whether the system actually keeps up with
-processing that traffic. Closing the observability gap above is the next step before
-any v2 bottleneck can be meaningfully investigated the way v1's were.

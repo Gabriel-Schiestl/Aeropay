@@ -28,10 +28,44 @@ var (
 		},
 		[]string{"method", "path", "status"},
 	)
+
+	// paymentProcessingDuration measures real acceptance-to-settlement
+	// latency (time.Since(event.AcceptedAt) at the moment the worker
+	// finishes processing), not just the worker's own local processing
+	// time - it includes time spent waiting in the outbox and in Kafka.
+	paymentProcessingDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "payment_processing_duration_seconds",
+			Help:    "Time from payment acceptance (202) to settlement (processed by a worker), by outcome",
+			Buckets: []float64{.05, .1, .25, .5, .75, 1, 2.5, 5, 10, 30, 60},
+		},
+		[]string{"outcome"},
+	)
+
+	// paymentsOutboxPending tracks whether the outbox backlog is draining
+	// or growing - the single most direct signal of whether processing is
+	// keeping up with acceptance under load.
+	paymentsOutboxPending = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "payments_outbox_pending",
+			Help: "Number of payments_outbox rows currently in status='pending'",
+		},
+	)
 )
 
 func init() {
-	prometheus.MustRegister(httpRequestsTotal, httpRequestDuration)
+	prometheus.MustRegister(httpRequestsTotal, httpRequestDuration, paymentProcessingDuration, paymentsOutboxPending)
+}
+
+// RecordPaymentProcessing records the acceptance-to-settlement latency for
+// one payment. outcome should be "success" or "error".
+func RecordPaymentProcessing(acceptedAt time.Time, outcome string) {
+	paymentProcessingDuration.WithLabelValues(outcome).Observe(time.Since(acceptedAt).Seconds())
+}
+
+// SetOutboxPending reports the current size of the pending outbox backlog.
+func SetOutboxPending(count float64) {
+	paymentsOutboxPending.Set(count)
 }
 
 func GinMiddleware() gin.HandlerFunc {

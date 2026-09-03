@@ -55,7 +55,8 @@ CREATE TABLE IF NOT EXISTS payments_outbox (
     id         BIGSERIAL PRIMARY KEY,
     status     payments_outbox_status NOT NULL DEFAULT 'pending',
     event_type TEXT NOT NULL,
-    key        UUID NOT NULL,
     payload    JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE payments_outbox DROP COLUMN IF EXISTS key;

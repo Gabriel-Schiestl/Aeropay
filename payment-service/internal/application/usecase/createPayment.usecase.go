@@ -6,6 +6,7 @@ import (
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/application/dto"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/domain"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/domain/ports"
+	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/observability"
 )
 
 type CreatePaymentUseCase struct {
@@ -18,16 +19,19 @@ func NewCreatePaymentUseCase(repository ports.PaymentRepository) *CreatePaymentU
 	}
 }
 
-func (uc *CreatePaymentUseCase) Execute(ctx context.Context, props dto.CreatePaymentDTO) error {
-	payment, err := domain.NewPayment(props.Amount, props.Currency, props.From, props.To)
+func (uc *CreatePaymentUseCase) Execute(ctx context.Context, event dto.PaymentAcceptedEvent) error {
+	payment, err := domain.NewPayment(event.Amount, event.Currency, event.From, event.To)
 	if err != nil {
+		observability.RecordPaymentProcessing(event.AcceptedAt, "error")
 		return err
 	}
 
-	err = uc.repository.Save(ctx, payment, props.IdempotencyKey)
+	err = uc.repository.Save(ctx, payment, event.IdempotencyKey)
 	if err != nil {
+		observability.RecordPaymentProcessing(event.AcceptedAt, "error")
 		return err
 	}
 
+	observability.RecordPaymentProcessing(event.AcceptedAt, "success")
 	return nil
 }

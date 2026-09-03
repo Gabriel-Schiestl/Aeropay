@@ -174,7 +174,10 @@ func (r *paymentRepository) SaveIdempotencyKey(ctx context.Context, payload dto.
 		return nil, err
 	}
 
-	jsonBody, err := json.Marshal(payload)
+	jsonBody, err := json.Marshal(dto.PaymentAcceptedEvent{
+		CreatePaymentDTO: payload,
+		AcceptedAt:       time.Now(),
+	})
 	if err != nil {
 		tx.Rollback()
 		return nil, err
