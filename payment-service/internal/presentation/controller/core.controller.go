@@ -31,7 +31,13 @@ func (cc *CoreController) createPaymentHandler(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(201, gin.H{"message": "Payment created successfully", "payment": payment})
+
+	if payment != nil {
+		ctx.JSON(200, gin.H{"message": "Payment already processed", "payment": payment})
+		return
+	}
+
+	ctx.JSON(202, gin.H{"message": "Payment accepted for processing"})
 }
 
 func (cc *CoreController) RegisterRoutes(srv *server.Server) {
