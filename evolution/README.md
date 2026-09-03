@@ -56,5 +56,10 @@ Workflow for each bottleneck found inside a version:
 
 ## Versions
 
-- [v1](v1/README.md) — synchronous handler, single DB, single replica. Currently being
-  scaled through configuration tuning.
+- [v1](v1/README.md) — **closed.** Synchronous handler, single DB, single replica.
+  Final numbers: 810 req/s, p95=298.52ms, p99=689.25ms, 0% errors — met latency/error
+  SLO, missed throughput. See [throughput_ceiling](v1/throughput_ceiling/README.md).
+- [v2](v2/README.md) — **built, not yet load-tested.** Async processing: `web` accepts
+  and enqueues via a transactional outbox, `workers` consume from Kafka and do the
+  actual debit/credit. Has known gaps (idempotency write-back, retry/DLQ, processing
+  observability) that need closing before its throughput can be meaningfully measured.
