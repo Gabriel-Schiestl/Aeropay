@@ -77,22 +77,46 @@ func (p *publisher) CreateTopic() error {
 	return nil
 }
 
-func (p *publisher) Publish(message any, key string) error {
-	data, err := json.Marshal(message)
-	if err != nil {
-		return fmt.Errorf("failed to marshal message: %w", err)
+func (p *publisher) Publish(ctx context.Context, messages []ports.Message) ([]int, error) {
+	var (
+		wg        sync.WaitGroup
+		mu        sync.Mutex
+		published = make([]int, 0, len(messages))
+		errs      []error
+	)
+
+	for _, message := range messages {
+		data, err := json.Marshal(message.Value)
+		if err != nil {
+			mu.Lock()
+			errs = append(errs, fmt.Errorf("failed to marshal message with ID %d: %w", message.ID, err))
+			mu.Unlock()
+			continue
+		}
+
+		record := &kgo.Record{
+			Topic: p.config.Topic,
+			Key:   []byte(message.Key),
+			Value: data,
+		}
+
+		wg.Add(1)
+		p.client.Produce(ctx, record, func(_ *kgo.Record, err error) {
+			defer wg.Done()
+
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to produce message with ID %d: %w", message.ID, err))
+				return
+			}
+			published = append(published, message.ID)
+		})
 	}
 
-	record := &kgo.Record{
-		Topic: p.config.Topic,
-		Key: []byte(key),
-		Value: data,
-	}
+	wg.Wait()
 
-	if err := p.client.ProduceSync(context.Background(), record).FirstErr(); err != nil {
-		return fmt.Errorf("failed to produce message: %w", err)
-	}
-	return nil
+	return published, errors.Join(errs...)
 }
 
 func (q *consumer[T]) Consume(ctx context.Context) error {

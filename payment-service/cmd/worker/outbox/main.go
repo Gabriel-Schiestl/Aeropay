@@ -16,6 +16,7 @@ import (
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/presentation/queue"
 	"github.com/Gabriel-Schiestl/Aeropay/payment-service/internal/presentation/server"
 	"github.com/joho/godotenv"
+	"github.com/lib/pq"
 	"go.uber.org/fx"
 )
 
@@ -151,7 +152,7 @@ func publishPendingMessages(ctx context.Context, publisher ports.Publisher, db *
 	}
 
 	// TODO: handle each event type in a separate function to avoid a large switch statement
-	processed := make([]int, len(messages))
+	batch := make([]ports.Message, 0, len(messages))
 	for _, message := range messages {
 		switch message.EventType {
 		case "create_payment":
@@ -162,17 +163,21 @@ func publishPendingMessages(ctx context.Context, publisher ports.Publisher, db *
 				continue
 			}
 
-			if err := publisher.Publish(json.RawMessage(message.Payload), body.From); err != nil {
-				log.Printf("failed to publish message with ID %d: %v", message.ID, err)
-				continue
-			}
-
-			processed = append(processed, message.ID)
+			batch = append(batch, ports.Message{
+				ID:    message.ID,
+				Key:   body.From,
+				Value: json.RawMessage(message.Payload),
+			})
 		}
 	}
 
+	processed, err := publisher.Publish(ctx, batch)
+	if err != nil {
+		log.Printf("failed to publish outbox messages: %v", err)
+	}
+
 	if len(processed) > 0 {
-		_, err := tx.StmtContext(ctx, updateStmt).ExecContext(ctx, processed)
+		_, err := tx.StmtContext(ctx, updateStmt).ExecContext(ctx, pq.Array(processed))
 		if err != nil {
 			log.Printf("failed to update outbox messages: %v", err)
 			tx.Rollback()

@@ -2,8 +2,14 @@ package ports
 
 import "context"
 
+type Message struct {
+	ID    int
+	Key   string
+	Value any
+}
+
 type Publisher interface {
-	Publish(message any, key string) error
+	Publish(ctx context.Context, messages []Message) ([]int, error)
 	Close()
 	CreateTopic() error
 }
